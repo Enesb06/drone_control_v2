@@ -1,8 +1,8 @@
+// lib/screens/home_page.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 
-// Aradığımız ve bağlanacağımız Wi-Fi ağının adı
 const String targetSsid = "ESP32_Sensor_GW_AP";
 
 class HomePage extends StatefulWidget {
@@ -23,7 +23,6 @@ class _HomePageState extends State<HomePage> {
     _getCurrentSsid();
   }
 
-  // Mevcut bağlı olunan Wi-Fi adını alır
   Future<void> _getCurrentSsid() async {
     String? currentSsid;
     try {
@@ -45,7 +44,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Wi-Fi ağlarını taramayı başlatan fonksiyon
   Future<void> _scanForWifi() async {
     if (_isScanning) return;
 
@@ -65,7 +63,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Belirtilen Wi-Fi ağına bağlanmayı deneyen fonksiyon
   Future<void> _connectToWifi(WifiNetwork network) async {
     if (network.ssid == targetSsid) {
       await WiFiForIoTPlugin.connect(
@@ -77,21 +74,33 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // --- YENİ FONKSİYON ---
+  // Ayarlar sayfasına gitmek için.
+  void _navigateToSettings() {
+    Navigator.pushNamed(context, '/settings');
+  }
+
   @override
   Widget build(BuildContext context) {
     bool isConnectedToTarget = _currentSsid == targetSsid;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Wi-Fi Bağlantı Yöneticisi'),
+        title: const Text('Bağlantı ve Ayarlar'),
         actions: [
+          // --- YENİ BUTON EKLENDİ ---
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Ayarlar',
+            onPressed: _navigateToSettings,
+          ),
           IconButton(
             icon: _isScanning
                 ? const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                      strokeWidth: 2.0,
                       color: Colors.white,
                     ),
                   )
@@ -112,12 +121,13 @@ class _HomePageState extends State<HomePage> {
                     itemBuilder: (context, index) {
                       final network = _wifiList[index];
                       IconData signalIcon;
-                      if (network.level! > -50)
+                      if (network.level! > -50) {
                         signalIcon = Icons.wifi_sharp;
-                      else if (network.level! > -70)
+                      } else if (network.level! > -70) {
                         signalIcon = Icons.wifi_2_bar_sharp;
-                      else
+                      } else {
                         signalIcon = Icons.wifi_1_bar_sharp;
+                      }
 
                       return ListTile(
                         leading: Icon(signalIcon),

@@ -1,18 +1,18 @@
+// lib/screens/dashboard_page.dart
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../services/settings_service.dart'; // SettingsService import edildi
 
-// --- Global Sabitler ve Enumlar ---
 final esp32WebSocketUrl = Uri.parse('ws://192.168.4.1:81');
 
 enum DataType { x_axis, y_axis, z_axis, resultant }
 
 enum MotorStatus { normal, warning, outOfBounds }
 
-// --- Ana Dashboard Sayfası ---
 class DroneDashboardPage extends StatefulWidget {
   const DroneDashboardPage({super.key});
 
@@ -49,10 +49,12 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
   final int _dataPointIntervalMs = 100;
   final int _displaySeconds = 5;
   Timer? _dataTimer;
-  final double _warningValue = 2.0;
-  final double _outOfBoundsValue = 4.0;
   bool _isClosing = false;
-  bool _hasRealData = false; // Gerçek veri var mı kontrolü
+  bool _hasRealData = false;
+
+  // --- YENİ ---
+  // Ayar servisine erişim için bir instance oluşturuluyor.
+  final SettingsService _settingsService = SettingsService.instance;
 
   @override
   void initState() {
@@ -84,7 +86,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
 
   void _connectToWebSocket() {
     if (!mounted) return;
-
     try {
       _channel = WebSocketChannel.connect(esp32WebSocketUrl);
       _socketSubscription = _channel!.stream.listen(
@@ -101,14 +102,12 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
         onDone: () {
           if (mounted && !_isClosing) {
             _isClosing = true;
-            print("WebSocket bağlantısı kapandı. Dashboard kapatılıyor.");
             Navigator.of(context).pop();
           }
         },
         onError: (error) {
           if (mounted && !_isClosing) {
             _isClosing = true;
-            print("WebSocket hatası: $error. Dashboard kapatılıyor.");
             Navigator.of(context).pop();
           }
         },
@@ -116,9 +115,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
     } catch (e) {
       if (mounted && !_isClosing) {
         _isClosing = true;
-        print(
-          "WebSocket bağlantı denemesi başarısız: $e. Dashboard kapatılıyor.",
-        );
         Navigator.of(context).pop();
       }
     }
@@ -128,48 +124,42 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
     if (!mounted || _isClosing) return;
     try {
       final data = jsonDecode(jsonData);
-
-      // Boş veri kontrolü - sadece zaman eksenini ilerletmek için
       if (data.containsKey('empty') && data['empty'] == true) {
-        // Boş veri - hiçbir şey ekleme, sadece zaman ilerlesin
         return;
       }
-
-      // Gerçek sensör verisi
       final int transmitterIndex = (data['id'] as int) - 1;
       if (transmitterIndex < 0 || transmitterIndex >= _numTransmitters) return;
-
       final double ax = (data['ax'] as num).toDouble();
       final double ay = (data['ay'] as num).toDouble();
       final double az = (data['az'] as num).toDouble();
       final double mag = (data['mag'] as num).toDouble();
 
       setState(() {
-        // İlk gerçek veri geldiğinde durumu güncelle
         if (!_hasRealData) {
           _hasRealData = true;
           _connectionStatus = "Bağlı - Veri Alınıyor";
         }
-
         _dataSpotsX[transmitterIndex]!.add(FlSpot(_globalTime, ax));
         _dataSpotsY[transmitterIndex]!.add(FlSpot(_globalTime, ay));
         _dataSpotsZ[transmitterIndex]!.add(FlSpot(_globalTime, az));
         _dataSpotsResultant[transmitterIndex]!.add(FlSpot(_globalTime, mag));
 
         MotorStatus newStatus;
-        if (mag.abs() > _outOfBoundsValue)
+        // --- DEĞİŞİKLİK BURADA ---
+        // Sabit değerler yerine ayarlar servisinden gelen değerler kullanılıyor.
+        if (mag.abs() > _settingsService.errorThreshold) {
           newStatus = MotorStatus.outOfBounds;
-        else if (mag.abs() > _warningValue)
+        } else if (mag.abs() > _settingsService.warningThreshold) {
           newStatus = MotorStatus.warning;
-        else
+        } else {
           newStatus = MotorStatus.normal;
-
+        }
         if (_motorStatus[transmitterIndex] != newStatus) {
           _motorStatus[transmitterIndex] = newStatus;
         }
       });
     } catch (e) {
-      // JSON parse hatası - sessizce geç
+      // Hata
     }
   }
 
@@ -274,7 +264,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
     final double minX = max(0.0, _globalTime - _displaySeconds);
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
     List<FlSpot> spots = _getSpotsForCurrentView();
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Stack(
@@ -341,7 +330,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
             ),
             duration: Duration.zero,
           ),
-          // Veri yokken uyarı mesajı
           if (!_hasRealData && _isConnected)
             Positioned(
               top: 20,

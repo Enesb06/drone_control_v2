@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:drone_control_v2/screens/home_page.dart'; // Yeni ana sayfamızı import ediyoruz
-import 'package:drone_control_v2/screens/dashboard_page.dart'; // Grafik sayfamızı import ediyoruz
+import 'package:drone_control_v2/screens/home_page.dart';
+import 'package:drone_control_v2/screens/dashboard_page.dart';
+import 'package:drone_control_v2/screens/settings_page.dart'; // Yeni sayfamızı import ediyoruz
+import 'package:drone_control_v2/services/settings_service.dart'; // Servisi import ediyoruz
 
-void main() {
+// main fonksiyonunu async yapıyoruz
+void main() async {
+  // Flutter binding'lerinin hazır olduğundan emin ol
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Uygulama başlamadan önce ayarları yükle
+  await SettingsService.instance.initialize();
+
   runApp(const MyApp());
 }
 
@@ -20,14 +29,11 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
-
-      // --- NAVİGASYON AYARLARI ---
-      // Uygulama ilk açıldığında hangi sayfanın gösterileceği
       initialRoute: '/',
-      // Hangi rotanın hangi sayfayı oluşturacağını tanımlıyoruz
       routes: {
         '/': (context) => const HomePage(),
         '/dashboard': (context) => const DroneDashboardPage(),
+        '/settings': (context) => const SettingsPage(), // Yeni rotayı ekliyoruz
       },
     );
   }
