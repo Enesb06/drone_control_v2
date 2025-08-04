@@ -1,4 +1,22 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ================== GEREKLİ İZİNLER BURAYA EKLENDİ ================== -->
+
+    <!-- Ağ durumunu sorgulamak için (Bağlı mı? Ne tür bir ağ?) -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- Wi-Fi durumunu sorgulamak için (SSID, sinyal gücü vb.) -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    
+    <!-- Wi-Fi durumunu değiştirmek için (Wi-Fi'ı açma/kapatma, bir ağa bağlanma) -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    
+    <!-- Wi-Fi ağlarını taramak modern Android sürümlerinde Konum izni gerektirir -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    
+    <!-- ==================================================================== -->
+
+
     <application
         android:label="drone_control_v2"
         android:name="${applicationName}"

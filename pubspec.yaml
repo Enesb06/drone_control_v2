@@ -36,6 +36,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   fl_chart: ^1.0.0
   web_socket_channel: ^3.0.3
+  wifi_iot: ^0.3.19+2
+  
+  
 
  
 
