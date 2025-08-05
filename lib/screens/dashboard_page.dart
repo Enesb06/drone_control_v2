@@ -42,7 +42,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   bool _isConnected = false;
   String _connectionStatus = "Bağlanılıyor...";
   double _globalTime = 0;
-  final int _dataPointIntervalMs = 100;
+  final int _dataPointIntervalMs = 5;
   final int _displaySeconds = 5;
   Timer? _dataTimer;
   bool _isClosing = false;
@@ -57,7 +57,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     for (var i = 0; i < 4; i++) i: [],
   };
   final Map<int, List<FlSpot>> _fftSpots = {for (var i = 0; i < 4; i++) i: []};
-  static const double _samplingRate = 10.0;
+  static const double _samplingRate = 50.0;
   final FftTransformer _fftTransformer = FftTransformer();
 
   @override
