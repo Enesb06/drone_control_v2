@@ -22,10 +22,9 @@ class DroneDashboardPage extends StatefulWidget {
 }
 
 class _DroneDashboardPageState extends State<DroneDashboardPage> {
-  // --- STATE DEĞİŞKENLERİ (DEĞİŞİKLİK YOK) ---
+  // --- KODUNUZUN BU KISMINDA HİÇBİR DEĞİŞİKLİK YOK ---
   final int _numTransmitters = 4;
   DataType _selectedDataType = DataType.resultant;
-
   final Map<int, List<FlSpot>> _dataSpotsX = {
     for (var i = 0; i < 4; i++) i: [],
   };
@@ -41,7 +40,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   final Map<int, MotorStatus> _motorStatus = {
     for (var i = 0; i < 4; i++) i: MotorStatus.inactive,
   };
-
   WebSocketChannel? _channel;
   StreamSubscription? _socketSubscription;
   bool _isConnected = false;
@@ -51,18 +49,14 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   final int _displaySeconds = 5;
   Timer? _dataTimer;
   bool _isClosing = false;
-
   final SettingsService _settingsService = SettingsService.instance;
-
   int _selectedViewIndex = 0;
   late List<bool> _viewSelections;
-
   final Map<int, DateTime> _lastDataTime = {};
   final Duration _inactiveTimeout = const Duration(seconds: 2);
 
   @override
   void initState() {
-    // (DEĞİŞİKLİK YOK)
     super.initState();
     _viewSelections = List.generate(5, (index) => index == 0);
     _connectToWebSocket();
@@ -71,7 +65,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   @override
   void dispose() {
-    // (DEĞİŞİKLİK YOK)
     _isClosing = true;
     _socketSubscription?.cancel();
     _channel?.sink.close();
@@ -80,7 +73,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   void _connectToWebSocket() {
-    // (DEĞİŞİKLİK YOK)
     if (!mounted) return;
     try {
       _channel = WebSocketChannel.connect(esp32WebSocketUrl);
@@ -117,28 +109,22 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   void _handleWebSocketData(String jsonData) {
-    // (DEĞİŞİKLİK YOK)
     if (!mounted || _isClosing) return;
     try {
       final data = jsonDecode(jsonData);
       if (data.containsKey('empty') && data['empty'] == true) return;
-
       final int transmitterIndex = (data['id'] as int) - 1;
       if (transmitterIndex < 0 || transmitterIndex >= _numTransmitters) return;
-
       _lastDataTime[transmitterIndex] = DateTime.now();
-
       final double ax = (data['ax'] as num).toDouble();
       final double ay = (data['ay'] as num).toDouble();
       final double az = (data['az'] as num).toDouble();
       final double mag = (data['mag'] as num).toDouble();
-
       setState(() {
         _dataSpotsX[transmitterIndex]!.add(FlSpot(_globalTime, ax));
         _dataSpotsY[transmitterIndex]!.add(FlSpot(_globalTime, ay));
         _dataSpotsZ[transmitterIndex]!.add(FlSpot(_globalTime, az));
         _dataSpotsResultant[transmitterIndex]!.add(FlSpot(_globalTime, mag));
-
         MotorStatus newStatus;
         if (mag.abs() > _settingsService.errorThreshold)
           newStatus = MotorStatus.outOfBounds;
@@ -146,7 +132,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
           newStatus = MotorStatus.warning;
         else
           newStatus = MotorStatus.normal;
-
         if (_motorStatus[transmitterIndex] != newStatus)
           _motorStatus[transmitterIndex] = newStatus;
       });
@@ -154,7 +139,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   void _startDataTimer() {
-    // (DEĞİŞİKLİK YOK)
     _dataTimer = Timer.periodic(Duration(milliseconds: _dataPointIntervalMs), (
       timer,
     ) {
@@ -162,7 +146,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         timer.cancel();
         return;
       }
-
       final now = DateTime.now();
       bool statusChanged = false;
       for (int i = 0; i < _numTransmitters; i++) {
@@ -173,7 +156,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
           statusChanged = true;
         }
       }
-
       setState(() {
         _globalTime += (_dataPointIntervalMs / 1000.0);
         final allLists = [
@@ -195,7 +177,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   String _getAppBarTitle() {
-    // (DEĞİŞİKLİK YOK)
     if (_selectedViewIndex < 4) {
       String status;
       if (_motorStatus[_selectedViewIndex] == MotorStatus.inactive) {
@@ -209,8 +190,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     }
   }
 
-  // --- YENİ YARDIMCI FONKSİYON ---
-  // Buton seçildiğinde state'i güncellemek için.
   void _handleViewSelection(int index) {
     setState(() {
       _selectedViewIndex = index;
@@ -222,7 +201,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    // (DEĞİŞİKLİK YOK)
     bool isAllView = _selectedViewIndex == 4;
     return Scaffold(
       appBar: AppBar(
@@ -255,8 +233,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     );
   }
 
-  // --- BU FONKSİYON GÜNCELLENDİ ---
-  // `ToggleButtons` yerine `Row` içinde `OutlinedButton`'lar kullanıldı.
+  // --- SADECE BU FONKSİYON GÜNCELLENDİ ---
   Widget _buildViewSelector() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
@@ -267,7 +244,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
           // V1, V2, V3, V4 Butonları
           if (index < 4) {
-            // Butonun kenarlık rengini ayarlardan dinamik olarak al
             final Color borderColor = _settingsService.transmitterColors[index];
             return Expanded(
               child: Padding(
@@ -283,7 +259,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                       borderRadius: BorderRadius.circular(8.0),
                     ),
                     side: BorderSide(
-                      // Buton seçili değilse kendi rengini, seçili ise vurgu rengini göster
                       color: isSelected ? Colors.cyanAccent : borderColor,
                       width: isSelected ? 2.5 : 2.0,
                     ),
@@ -293,7 +268,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               ),
             );
           }
-          // "TÜMÜ" Butonu
+          // "ALL" Butonu
           else {
             return Expanded(
               child: Padding(
@@ -301,6 +276,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 child: OutlinedButton(
                   onPressed: () => _handleViewSelection(index),
                   style: OutlinedButton.styleFrom(
+                    // --- DEĞİŞİKLİK 1: Tutarlılık için padding: EdgeInsets.zero eklendi ---
+                    padding: EdgeInsets.zero,
                     backgroundColor: isSelected
                         ? Colors.cyan.withOpacity(0.2)
                         : Colors.transparent,
@@ -313,9 +290,10 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                     ),
                   ),
                   child: Padding(
+                    // --- DEĞİŞİKLİK 2: Yüksekliği diğerleriyle eşitlemek için vertical: 12.0 yapıldı ---
                     padding: const EdgeInsets.symmetric(vertical: 12.0),
                     child: Text(
-                      "TÜMÜ",
+                      "ALL", // --- DEĞİŞİKLİK 3: Metin "ALL" olarak güncellendi ---
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: isSelected ? Colors.cyanAccent : Colors.white70,
@@ -332,11 +310,9 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   Widget _buildGraph() {
-    // (DEĞİŞİKLİK YOK)
     final double minX = max(0.0, _globalTime - _displaySeconds);
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
     List<LineChartBarData> lines = [];
-
     if (_selectedViewIndex == 4) {
       for (int i = 0; i < _numTransmitters; i++) {
         if (_motorStatus[i] != MotorStatus.inactive) {
@@ -377,7 +353,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         ),
       );
     }
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: LineChart(
@@ -425,7 +400,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   Widget _buildConnectionPrompt() => Center(
-    // (DEĞİŞİKLİK YOK)
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -436,8 +410,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     ),
   );
 
-  // --- BU FONKSİYON GÜNCELLENDİ ---
-  // Buton içeriğinin yüksekliğini ve metin rengini ayarlamak için küçük değişiklikler yapıldı.
   Widget _buildMotorTab(String title, MotorStatus status) {
     Color indicatorColor;
     switch (status) {
@@ -454,12 +426,9 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         indicatorColor = Colors.grey[600]!;
         break;
     }
-
-    // Hangi motorun sekmesinin seçili olduğunu kontrol et
     final bool isCurrentlySelected =
         _viewSelections[_selectedViewIndex] &&
         title == "V${_selectedViewIndex + 1}";
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
       child: Row(
