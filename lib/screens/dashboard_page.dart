@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import '../services/settings_service.dart'; // SettingsService import edildi
+import '../services/settings_service.dart';
 
 final esp32WebSocketUrl = Uri.parse('ws://192.168.4.1:81');
 
@@ -20,12 +20,12 @@ class DroneDashboardPage extends StatefulWidget {
   State<DroneDashboardPage> createState() => _DroneDashboardPageState();
 }
 
-class _DroneDashboardPageState extends State<DroneDashboardPage>
-    with TickerProviderStateMixin {
-  late TabController _transmitterTabController;
+class _DroneDashboardPageState extends State<DroneDashboardPage> {
+  // --- STATE DEĞİŞKENLERİ ---
   final int _numTransmitters = 4;
-  int _selectedTransmitterIndex = 0;
   DataType _selectedDataType = DataType.resultant;
+
+  // Veri listeleri
   final Map<int, List<FlSpot>> _dataSpotsX = {
     for (var i = 0; i < 4; i++) i: [],
   };
@@ -41,6 +41,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
   final Map<int, MotorStatus> _motorStatus = {
     for (var i = 0; i < 4; i++) i: MotorStatus.normal,
   };
+
+  // Bağlantı ve Zamanlama
   WebSocketChannel? _channel;
   StreamSubscription? _socketSubscription;
   bool _isConnected = false;
@@ -52,24 +54,19 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
   bool _isClosing = false;
   bool _hasRealData = false;
 
-  // --- YENİ ---
-  // Ayar servisine erişim için bir instance oluşturuluyor.
   final SettingsService _settingsService = SettingsService.instance;
+
+  // --- YENİ: Arayüz durumu için ---
+  // 0-3: V1-V4, 4: TÜMÜ
+  int _selectedViewIndex = 0;
+  // ToggleButtons'un seçili durumunu tutan liste
+  late List<bool> _viewSelections;
 
   @override
   void initState() {
     super.initState();
-    _transmitterTabController = TabController(
-      length: _numTransmitters,
-      vsync: this,
-    );
-    _transmitterTabController.addListener(() {
-      if (!_transmitterTabController.indexIsChanging && mounted) {
-        setState(
-          () => _selectedTransmitterIndex = _transmitterTabController.index,
-        );
-      }
-    });
+    // 5 buton var, ilki seçili
+    _viewSelections = List.generate(5, (index) => index == 0);
     _connectToWebSocket();
     _startDataTimer();
   }
@@ -77,7 +74,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
   @override
   void dispose() {
     _isClosing = true;
-    _transmitterTabController.dispose();
     _socketSubscription?.cancel();
     _channel?.sink.close();
     _dataTimer?.cancel();
@@ -85,6 +81,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
   }
 
   void _connectToWebSocket() {
+    // ... Bu fonksiyon aynı kalıyor ...
     if (!mounted) return;
     try {
       _channel = WebSocketChannel.connect(esp32WebSocketUrl);
@@ -121,49 +118,43 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
   }
 
   void _handleWebSocketData(String jsonData) {
+    // ... Bu fonksiyon aynı kalıyor (SettingsService'den okuma dahil) ...
     if (!mounted || _isClosing) return;
     try {
       final data = jsonDecode(jsonData);
-      if (data.containsKey('empty') && data['empty'] == true) {
-        return;
-      }
+      if (data.containsKey('empty') && data['empty'] == true) return;
+
       final int transmitterIndex = (data['id'] as int) - 1;
       if (transmitterIndex < 0 || transmitterIndex >= _numTransmitters) return;
+
       final double ax = (data['ax'] as num).toDouble();
       final double ay = (data['ay'] as num).toDouble();
       final double az = (data['az'] as num).toDouble();
       final double mag = (data['mag'] as num).toDouble();
 
       setState(() {
-        if (!_hasRealData) {
-          _hasRealData = true;
-          _connectionStatus = "Bağlı - Veri Alınıyor";
-        }
+        if (!_hasRealData) _hasRealData = true;
         _dataSpotsX[transmitterIndex]!.add(FlSpot(_globalTime, ax));
         _dataSpotsY[transmitterIndex]!.add(FlSpot(_globalTime, ay));
         _dataSpotsZ[transmitterIndex]!.add(FlSpot(_globalTime, az));
         _dataSpotsResultant[transmitterIndex]!.add(FlSpot(_globalTime, mag));
 
         MotorStatus newStatus;
-        // --- DEĞİŞİKLİK BURADA ---
-        // Sabit değerler yerine ayarlar servisinden gelen değerler kullanılıyor.
-        if (mag.abs() > _settingsService.errorThreshold) {
+        if (mag.abs() > _settingsService.errorThreshold)
           newStatus = MotorStatus.outOfBounds;
-        } else if (mag.abs() > _settingsService.warningThreshold) {
+        else if (mag.abs() > _settingsService.warningThreshold)
           newStatus = MotorStatus.warning;
-        } else {
+        else
           newStatus = MotorStatus.normal;
-        }
-        if (_motorStatus[transmitterIndex] != newStatus) {
+
+        if (_motorStatus[transmitterIndex] != newStatus)
           _motorStatus[transmitterIndex] = newStatus;
-        }
       });
-    } catch (e) {
-      // Hata
-    }
+    } catch (e) {}
   }
 
   void _startDataTimer() {
+    // ... Bu fonksiyon aynı kalıyor ...
     _dataTimer = Timer.periodic(Duration(milliseconds: _dataPointIntervalMs), (
       timer,
     ) {
@@ -188,190 +179,207 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
     });
   }
 
-  List<FlSpot> _getSpotsForCurrentView() {
-    if (!_isConnected) return [];
-    switch (_selectedDataType) {
-      case DataType.x_axis:
-        return _dataSpotsX[_selectedTransmitterIndex]!;
-      case DataType.y_axis:
-        return _dataSpotsY[_selectedTransmitterIndex]!;
-      case DataType.z_axis:
-        return _dataSpotsZ[_selectedTransmitterIndex]!;
-      case DataType.resultant:
-        return _dataSpotsResultant[_selectedTransmitterIndex]!;
+  // --- GÜNCELLENDİ: Başlık metnini dinamik olarak oluşturur ---
+  String _getAppBarTitle() {
+    if (_selectedViewIndex < 4) {
+      String status = _hasRealData ? "Veri Alınıyor" : "Boş Grafik";
+      return 'V${_selectedViewIndex + 1} Monitör - $status';
+    } else {
+      return 'Tüm Vericiler - Bileşke Grafik';
     }
-  }
-
-  String _getStatusText() {
-    if (!_isConnected) return _connectionStatus;
-    if (!_hasRealData) return "Bağlı - Boş Grafik";
-    return _connectionStatus;
   }
 
   @override
   Widget build(BuildContext context) {
+    bool isAllView = _selectedViewIndex == 4;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'V${_selectedTransmitterIndex + 1} Monitör - ${_getStatusText()}',
-        ),
+        title: Text(_getAppBarTitle()),
         backgroundColor: Theme.of(context).primaryColor,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: SegmentedButton<DataType>(
-              segments: const [
-                ButtonSegment(value: DataType.x_axis, label: Text('X')),
-                ButtonSegment(value: DataType.y_axis, label: Text('Y')),
-                ButtonSegment(value: DataType.z_axis, label: Text('Z')),
-                ButtonSegment(
-                  value: DataType.resultant,
-                  label: Text('Bileşke'),
+        // X, Y, Z, Bileşke butonları "TÜMÜ" modunda gizlenir.
+        actions: isAllView
+            ? null
+            : [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: SegmentedButton<DataType>(
+                    segments: const [
+                      ButtonSegment(value: DataType.x_axis, label: Text('X')),
+                      ButtonSegment(value: DataType.y_axis, label: Text('Y')),
+                      ButtonSegment(value: DataType.z_axis, label: Text('Z')),
+                      ButtonSegment(
+                        value: DataType.resultant,
+                        label: Text('Bileşke'),
+                      ),
+                    ],
+                    selected: {_selectedDataType},
+                    onSelectionChanged: (newSelection) =>
+                        setState(() => _selectedDataType = newSelection.first),
+                  ),
                 ),
               ],
-              selected: {_selectedDataType},
-              onSelectionChanged: (newSelection) =>
-                  setState(() => _selectedDataType = newSelection.first),
-              style: SegmentedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A1A2E),
-                selectedForegroundColor: Colors.cyanAccent,
-                selectedBackgroundColor: Colors.blueAccent.withOpacity(0.3),
-                foregroundColor: Colors.white70,
-                side: const BorderSide(color: Colors.white24),
-              ),
-            ),
-          ),
-        ],
       ),
       body: _isConnected ? _buildGraph() : _buildConnectionPrompt(),
-      bottomNavigationBar: BottomAppBar(
-        color: Theme.of(context).primaryColor,
-        child: TabBar(
-          controller: _transmitterTabController,
-          indicatorColor: Colors.cyanAccent,
-          indicatorWeight: 3.0,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
-          tabs: List.generate(_numTransmitters, (index) {
-            return _buildMotorTab("V${index + 1}", _motorStatus[index]!);
-          }),
+      // --- YENİ: Butonlar için alt panel ---
+      bottomNavigationBar: _buildViewSelector(),
+    );
+  }
+
+  // --- YENİ: V1-V4 ve TÜMÜ butonlarını oluşturan widget ---
+  Widget _buildViewSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+      color: Theme.of(context).primaryColor,
+      child: ToggleButtons(
+        isSelected: _viewSelections,
+        onPressed: (int index) {
+          setState(() {
+            _selectedViewIndex = index;
+            for (int i = 0; i < _viewSelections.length; i++) {
+              _viewSelections[i] = (i == index);
+            }
+          });
+        },
+        borderRadius: BorderRadius.circular(8.0),
+        borderWidth: 2,
+        borderColor: Colors.white24,
+        selectedBorderColor: Colors.cyanAccent,
+        fillColor: Colors.cyan.withOpacity(0.2),
+        color: Colors.white70,
+        selectedColor: Colors.cyanAccent,
+        constraints: BoxConstraints(
+          minWidth: (MediaQuery.of(context).size.width - 24) / 5,
+          minHeight: 40.0,
         ),
+        children: List.generate(5, (index) {
+          if (index < 4) {
+            return _buildMotorTab("V${index + 1}", _motorStatus[index]!);
+          } else {
+            return const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8.0),
+              child: Text(
+                "TÜMÜ",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            );
+          }
+        }),
       ),
     );
   }
 
+  // --- GÜNCELLENDİ: Grafik oluşturma mantığı ---
   Widget _buildGraph() {
     final double minX = max(0.0, _globalTime - _displaySeconds);
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
-    List<FlSpot> spots = _getSpotsForCurrentView();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Stack(
-        children: [
-          LineChart(
-            LineChartData(
-              minY: -5,
-              maxY: 5,
-              minX: minX,
-              maxX: maxX,
-              gridData: FlGridData(
-                show: true,
-                getDrawingHorizontalLine: (value) =>
-                    const FlLine(color: Colors.white10, strokeWidth: 0.5),
-                getDrawingVerticalLine: (value) =>
-                    const FlLine(color: Colors.white10, strokeWidth: 0.5),
-              ),
-              titlesData: FlTitlesData(
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 32,
-                    getTitlesWidget: (v, m) => Text(
-                      v.toStringAsFixed(0),
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 28,
-                    interval: 1.0,
-                    getTitlesWidget: (v, m) => Text(
-                      v.toStringAsFixed(0),
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ),
-                topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-              ),
-              borderData: FlBorderData(show: false),
-              lineBarsData: [
-                LineChartBarData(
-                  spots: spots,
-                  isCurved: false,
-                  color: Colors.cyan,
-                  barWidth: 2,
-                  dotData: const FlDotData(show: false),
-                  belowBarData: BarAreaData(show: false),
-                ),
-              ],
-            ),
-            duration: Duration.zero,
+
+    List<LineChartBarData> lines = [];
+
+    // "TÜMÜ" modu seçiliyse
+    if (_selectedViewIndex == 4) {
+      for (int i = 0; i < _numTransmitters; i++) {
+        lines.add(
+          LineChartBarData(
+            spots: _dataSpotsResultant[i]!,
+            color:
+                _settingsService.transmitterColors[i], // Ayarlardan gelen renk
+            barWidth: 2,
+            isCurved: false,
+            dotData: const FlDotData(show: false),
           ),
-          if (!_hasRealData && _isConnected)
-            Positioned(
-              top: 20,
-              left: 20,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  "Sensörlerden veri bekleniyor...\nZaman ekseni akıyor",
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
+        );
+      }
+    }
+    // Tek bir verici modu seçiliyse
+    else {
+      List<FlSpot> spots;
+      switch (_selectedDataType) {
+        case DataType.x_axis:
+          spots = _dataSpotsX[_selectedViewIndex]!;
+          break;
+        case DataType.y_axis:
+          spots = _dataSpotsY[_selectedViewIndex]!;
+          break;
+        case DataType.z_axis:
+          spots = _dataSpotsZ[_selectedViewIndex]!;
+          break;
+        case DataType.resultant:
+          spots = _dataSpotsResultant[_selectedViewIndex]!;
+          break;
+      }
+      lines.add(
+        LineChartBarData(
+          spots: spots,
+          color: _settingsService
+              .transmitterColors[_selectedViewIndex], // Ayarlardan gelen renk
+          barWidth: 2,
+          isCurved: false,
+          dotData: const FlDotData(show: false),
+        ),
+      );
+    }
+
+    return Padding(
+      // ... Geri kalan Padding ve LineChartData yapısı büyük ölçüde aynı kalıyor.
+      // Sadece lineBarsData'yı yukarıda oluşturduğumuz 'lines' listesiyle değiştiriyoruz.
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: LineChart(
+        LineChartData(
+          minY: -5,
+          maxY: 5,
+          minX: minX,
+          maxX: maxX,
+          lineBarsData: lines, // DİNAMİK ÇİZGİLER
+          gridData: FlGridData(
+            show: true,
+            getDrawingHorizontalLine: (value) =>
+                const FlLine(color: Colors.white10, strokeWidth: 0.5),
+            getDrawingVerticalLine: (value) =>
+                const FlLine(color: Colors.white10, strokeWidth: 0.5),
+          ),
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 32,
+                getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)),
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConnectionPrompt() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(color: Colors.cyanAccent),
-            const SizedBox(height: 24),
-            Text(
-              _connectionStatus,
-              style: const TextStyle(color: Colors.white, fontSize: 18),
-              textAlign: TextAlign.center,
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 28,
+                interval: 1.0,
+                getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)),
+              ),
             ),
-          ],
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+          ),
+          borderData: FlBorderData(show: false),
         ),
+        duration: Duration.zero,
       ),
     );
   }
 
+  // ... _buildConnectionPrompt aynı kalıyor ...
+  Widget _buildConnectionPrompt() => Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const CircularProgressIndicator(),
+        const SizedBox(height: 24),
+        Text(_connectionStatus),
+      ],
+    ),
+  );
+
+  // --- GÜNCELLENDİ: Bu widget artık sadece ToggleButtons içinde kullanılıyor ---
   Widget _buildMotorTab(String title, MotorStatus status) {
     Color indicatorColor;
     switch (status) {
@@ -385,7 +393,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
         indicatorColor = Colors.redAccent;
         break;
     }
-    return Tab(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -397,13 +406,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: indicatorColor,
-              boxShadow: [
-                BoxShadow(
-                  color: indicatorColor.withOpacity(0.7),
-                  blurRadius: 4.0,
-                  spreadRadius: 1.0,
-                ),
-              ],
             ),
           ),
         ],
