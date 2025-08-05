@@ -432,12 +432,18 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     final double minX = max(0.0, _globalTime - _displaySeconds);
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
     List<LineChartBarData> lines = [];
+
+    // Veri toplama mantığı aynı kalıyor
     if (_selectedViewIndex == 4) {
+      // "ALL" görünümü
       for (int i = 0; i < _numTransmitters; i++) {
         if (_motorStatus[i] != MotorStatus.inactive) {
           lines.add(
             LineChartBarData(
-              spots: _dataSpotsResultant[i]!,
+              // .abs() ile verilerin mutlak değerini alıyoruz
+              spots: _dataSpotsResultant[i]!
+                  .map((spot) => FlSpot(spot.x, spot.y.abs()))
+                  .toList(),
               color: _settingsService.transmitterColors[i],
               barWidth: 2,
               isCurved: false,
@@ -447,6 +453,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         }
       }
     } else {
+      // Tekil sensör görünümü
       List<FlSpot> spots;
       switch (_selectedDataType) {
         case DataType.x_axis:
@@ -464,7 +471,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       }
       lines.add(
         LineChartBarData(
-          spots: spots,
+          // .abs() ile verilerin mutlak değerini alıyoruz
+          spots: spots.map((spot) => FlSpot(spot.x, spot.y.abs())).toList(),
           color: _settingsService.transmitterColors[_selectedViewIndex],
           barWidth: 2,
           isCurved: false,
@@ -472,12 +480,15 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         ),
       );
     }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: LineChart(
         LineChartData(
-          minY: -5,
-          maxY: 5,
+          // =========== DEĞİŞİKLİK BURADA ===========
+          minY: 0, // Y ekseninin başlangıcı 0 olarak ayarlandı
+          maxY: 10, // Y ekseninin bitişi 10 olarak ayarlandı
+          // =========================================
           minX: minX,
           maxX: maxX,
           lineBarsData: lines,
@@ -493,6 +504,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 32,
+                // Y eksenindeki aralıkları 2 birim olarak ayarlayalım (0, 2, 4, 6, 8, 10)
+                interval: 2.0,
                 getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)),
               ),
             ),
