@@ -1,5 +1,3 @@
-// lib/screens/dashboard_page.dart (GÜNCELLENMİŞ KOD)
-
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -22,7 +20,6 @@ class DroneDashboardPage extends StatefulWidget {
 }
 
 class _DroneDashboardPageState extends State<DroneDashboardPage> {
-  // --- KODUNUZUN BU KISMINDA HİÇBİR DEĞİŞİKLİK YOK ---
   final int _numTransmitters = 4;
   DataType _selectedDataType = DataType.resultant;
   final Map<int, List<FlSpot>> _dataSpotsX = {
@@ -54,6 +51,14 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   late List<bool> _viewSelections;
   final Map<int, DateTime> _lastDataTime = {};
   final Duration _inactiveTimeout = const Duration(seconds: 2);
+  bool _isFftView = false;
+  static const int _fftSampleSize = 128;
+  final Map<int, List<double>> _fftDataBuffer = {
+    for (var i = 0; i < 4; i++) i: [],
+  };
+  final Map<int, List<FlSpot>> _fftSpots = {for (var i = 0; i < 4; i++) i: []};
+  static const double _samplingRate = 10.0;
+  final FftTransformer _fftTransformer = FftTransformer();
 
   @override
   void initState() {
@@ -120,6 +125,11 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       final double ay = (data['ay'] as num).toDouble();
       final double az = (data['az'] as num).toDouble();
       final double mag = (data['mag'] as num).toDouble();
+      final buffer = _fftDataBuffer[transmitterIndex]!;
+      buffer.add(mag);
+      if (buffer.length > _fftSampleSize) {
+        buffer.removeAt(0);
+      }
       setState(() {
         _dataSpotsX[transmitterIndex]!.add(FlSpot(_globalTime, ax));
         _dataSpotsY[transmitterIndex]!.add(FlSpot(_globalTime, ay));
@@ -138,6 +148,33 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     } catch (e) {}
   }
 
+  void _calculateAndSetFft() {
+    if (_selectedViewIndex >= 4 || !_isFftView) {
+      if (_fftSpots.containsKey(_selectedViewIndex) &&
+          (_fftSpots[_selectedViewIndex]?.isNotEmpty ?? false)) {
+        setState(() {
+          _fftSpots[_selectedViewIndex] = [];
+        });
+      }
+      return;
+    }
+    final buffer = _fftDataBuffer[_selectedViewIndex]!;
+    if (buffer.length < _fftSampleSize) return;
+    final List<Complex> freq = _fftTransformer.transform(buffer);
+    final List<FlSpot> newFftSpots = [];
+    for (int i = 0; i < (_fftSampleSize / 2).floor(); i++) {
+      final double frequency = i * _samplingRate / _fftSampleSize;
+      final double magnitude = freq[i].abs();
+      newFftSpots.add(FlSpot(frequency, magnitude));
+    }
+    if (_fftSpots[_selectedViewIndex]!.length != newFftSpots.length ||
+        newFftSpots.isNotEmpty) {
+      setState(() {
+        _fftSpots[_selectedViewIndex] = newFftSpots;
+      });
+    }
+  }
+
   void _startDataTimer() {
     _dataTimer = Timer.periodic(Duration(milliseconds: _dataPointIntervalMs), (
       timer,
@@ -146,6 +183,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         timer.cancel();
         return;
       }
+      _calculateAndSetFft();
       final now = DateTime.now();
       bool statusChanged = false;
       for (int i = 0; i < _numTransmitters; i++) {
@@ -169,29 +207,30 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
             list.removeWhere((spot) => spot.x < _globalTime - _displaySeconds);
           }
         }
-        if (statusChanged) {
-          print("Sensör durumu güncellendi: Bir veya daha fazla sensör pasif.");
-        }
       });
     });
   }
 
   String _getAppBarTitle() {
+    String baseTitle;
     if (_selectedViewIndex < 4) {
-      String status;
-      if (_motorStatus[_selectedViewIndex] == MotorStatus.inactive) {
-        status = "Pasif";
-      } else {
-        status = "Veri Alınıyor";
-      }
-      return 'V${_selectedViewIndex + 1} Monitör - $status';
+      String status = _motorStatus[_selectedViewIndex] == MotorStatus.inactive
+          ? "Pasif"
+          : "Veri Alınıyor";
+      baseTitle = 'V${_selectedViewIndex + 1} Monitör - $status';
     } else {
-      return 'Tüm Vericiler - Bileşke Grafik';
+      baseTitle = 'Tüm Vericiler - Bileşke Grafik';
     }
+    return _isFftView ? '$baseTitle (FFT)' : baseTitle;
   }
 
   void _handleViewSelection(int index) {
     setState(() {
+      // "ALL" butonuna basılırsa, FFT modundan otomatik çık.
+      // Bu, önceki çökme hatasını düzelten koddur ve burada kalmasında fayda var.
+      if (index == 4) {
+        _isFftView = false;
+      }
       _selectedViewIndex = index;
       for (int i = 0; i < _viewSelections.length; i++) {
         _viewSelections[i] = (i == index);
@@ -206,43 +245,125 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       appBar: AppBar(
         title: Text(_getAppBarTitle()),
         backgroundColor: Theme.of(context).primaryColor,
-        actions: isAllView
-            ? null
-            : [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: SegmentedButton<DataType>(
-                    segments: const [
-                      ButtonSegment(value: DataType.x_axis, label: Text('X')),
-                      ButtonSegment(value: DataType.y_axis, label: Text('Y')),
-                      ButtonSegment(value: DataType.z_axis, label: Text('Z')),
-                      ButtonSegment(
-                        value: DataType.resultant,
-                        label: Text('Bileşke'),
-                      ),
-                    ],
-                    selected: {_selectedDataType},
-                    onSelectionChanged: (newSelection) =>
-                        setState(() => _selectedDataType = newSelection.first),
+        actions: [
+          if (!isAllView)
+            IconButton(
+              icon: Icon(_isFftView ? Icons.show_chart : Icons.ssid_chart),
+              tooltip: _isFftView
+                  ? 'Zaman Grafiğini Göster'
+                  : 'FFT Grafiğini Göster',
+              onPressed: () {
+                setState(() {
+                  _isFftView = !_isFftView;
+                });
+              },
+            ),
+          if (!isAllView && !_isFftView)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: SegmentedButton<DataType>(
+                segments: const [
+                  ButtonSegment(value: DataType.x_axis, label: Text('X')),
+                  ButtonSegment(value: DataType.y_axis, label: Text('Y')),
+                  ButtonSegment(value: DataType.z_axis, label: Text('Z')),
+                  ButtonSegment(
+                    value: DataType.resultant,
+                    label: Text('Bileşke'),
                   ),
-                ),
-              ],
+                ],
+                selected: {_selectedDataType},
+                onSelectionChanged: (newSelection) =>
+                    setState(() => _selectedDataType = newSelection.first),
+              ),
+            ),
+        ],
       ),
-      body: _isConnected ? _buildGraph() : _buildConnectionPrompt(),
+      body: _isConnected
+          ? (_isFftView ? _buildFftGraph() : _buildGraph())
+          : _buildConnectionPrompt(),
       bottomNavigationBar: _buildViewSelector(),
     );
   }
 
-  // --- SADECE BU FONKSİYON GÜNCELLENDİ ---
+  Widget _buildFftGraph() {
+    if (_selectedViewIndex >= 4)
+      return const Center(
+        child: Text("FFT analizi sadece tekil sensörler için geçerlidir."),
+      );
+    final List<FlSpot> spots = _fftSpots[_selectedViewIndex] ?? [];
+    double maxY = 0;
+    if (spots.isNotEmpty) {
+      maxY = spots.map((spot) => spot.y).reduce(max);
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: LineChart(
+        LineChartData(
+          minY: 0,
+          maxY: maxY == 0 ? 10 : (maxY * 1.2),
+          minX: 0,
+          maxX: _samplingRate / 2,
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              color: _settingsService.transmitterColors[_selectedViewIndex],
+              barWidth: 2,
+              isCurved: false,
+              dotData: const FlDotData(show: false),
+            ),
+          ],
+          gridData: FlGridData(
+            show: true,
+            getDrawingHorizontalLine: (value) =>
+                const FlLine(color: Colors.white10, strokeWidth: 0.5),
+            getDrawingVerticalLine: (value) =>
+                const FlLine(color: Colors.white10, strokeWidth: 0.5),
+          ),
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 40,
+                getTitlesWidget: (v, m) => Text(v.toStringAsFixed(1)),
+              ),
+              axisNameWidget: const Text("Genlik"),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 28,
+                interval: 1.0,
+                getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)),
+              ),
+              axisNameWidget: const Text("Frekans (Hz)"),
+            ),
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+          ),
+          borderData: FlBorderData(show: false),
+        ),
+        duration: const Duration(milliseconds: 150),
+      ),
+    );
+  }
+
+  // --- BU FONKSİYON GÜNCELLENDİ ---
   Widget _buildViewSelector() {
+    // FFT modundaysak 4 buton, değilsek 5 buton göster.
+    final int buttonCount = _isFftView ? 4 : 5;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
       color: Theme.of(context).primaryColor,
       child: Row(
-        children: List.generate(5, (index) {
+        // Listeyi dinamik olarak oluştur.
+        children: List.generate(buttonCount, (index) {
           bool isSelected = _viewSelections[index];
-
-          // V1, V2, V3, V4 Butonları
+          // V1-V4 butonları her zaman gösterilir.
           if (index < 4) {
             final Color borderColor = _settingsService.transmitterColors[index];
             return Expanded(
@@ -268,7 +389,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               ),
             );
           }
-          // "ALL" Butonu
+          // "ALL" butonu sadece `buttonCount` 5 ise (yani FFT modu kapalıysa) oluşturulur.
           else {
             return Expanded(
               child: Padding(
@@ -276,7 +397,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 child: OutlinedButton(
                   onPressed: () => _handleViewSelection(index),
                   style: OutlinedButton.styleFrom(
-                    // --- DEĞİŞİKLİK 1: Tutarlılık için padding: EdgeInsets.zero eklendi ---
                     padding: EdgeInsets.zero,
                     backgroundColor: isSelected
                         ? Colors.cyan.withOpacity(0.2)
@@ -290,10 +410,9 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                     ),
                   ),
                   child: Padding(
-                    // --- DEĞİŞİKLİK 2: Yüksekliği diğerleriyle eşitlemek için vertical: 12.0 yapıldı ---
                     padding: const EdgeInsets.symmetric(vertical: 12.0),
                     child: Text(
-                      "ALL", // --- DEĞİŞİKLİK 3: Metin "ALL" olarak güncellendi ---
+                      "ALL",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: isSelected ? Colors.cyanAccent : Colors.white70,
@@ -399,16 +518,18 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     );
   }
 
-  Widget _buildConnectionPrompt() => Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const CircularProgressIndicator(),
-        const SizedBox(height: 24),
-        Text(_connectionStatus),
-      ],
-    ),
-  );
+  Widget _buildConnectionPrompt() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 24),
+          Text(_connectionStatus),
+        ],
+      ),
+    );
+  }
 
   Widget _buildMotorTab(String title, MotorStatus status) {
     Color indicatorColor;
@@ -427,6 +548,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         break;
     }
     final bool isCurrentlySelected =
+        _viewSelections.length > _selectedViewIndex &&
         _viewSelections[_selectedViewIndex] &&
         title == "V${_selectedViewIndex + 1}";
     return Padding(
@@ -452,5 +574,68 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         ],
       ),
     );
+  }
+}
+
+class Complex {
+  double real;
+  double imag;
+  Complex(this.real, this.imag);
+  double abs() {
+    return sqrt(real * real + imag * imag);
+  }
+
+  Complex operator +(Complex other) {
+    return Complex(real + other.real, imag + other.imag);
+  }
+
+  Complex operator -(Complex other) {
+    return Complex(real - other.real, imag - other.imag);
+  }
+
+  Complex operator *(Complex other) {
+    return Complex(
+      real * other.real - imag * other.imag,
+      real * other.imag + other.real,
+    );
+  }
+}
+
+class FftTransformer {
+  List<Complex> transform(List<double> real) {
+    final int n = real.length;
+    if (n == 0) return [];
+    if ((n & (n - 1)) != 0) {
+      return [];
+    }
+    List<Complex> buffer = real.map((e) => Complex(e, 0)).toList();
+    for (int i = 1, j = 0; i < n; i++) {
+      int bit = n >> 1;
+      while (j >= bit) {
+        j -= bit;
+        bit >>= 1;
+      }
+      j += bit;
+      if (i < j) {
+        final temp = buffer[i];
+        buffer[i] = buffer[j];
+        buffer[j] = temp;
+      }
+    }
+    for (int len = 2; len <= n; len <<= 1) {
+      final double ang = -2 * pi / len;
+      final Complex wlen = Complex(cos(ang), sin(ang));
+      for (int i = 0; i < n; i += len) {
+        Complex w = Complex(1, 0);
+        for (int j = 0; j < len / 2; j++) {
+          final Complex u = buffer[i + j];
+          final Complex v = buffer[i + j + len ~/ 2] * w;
+          buffer[i + j] = u + v;
+          buffer[i + j + len ~/ 2] = u - v;
+          w = w * wlen;
+        }
+      }
+    }
+    return buffer;
   }
 }
