@@ -1,4 +1,5 @@
-// lib/screens/dashboard_page.dart
+// lib/screens/dashboard_page.dart (GÜNCELLENMİŞ KOD)
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -11,7 +12,6 @@ final esp32WebSocketUrl = Uri.parse('ws://192.168.4.1:81');
 
 enum DataType { x_axis, y_axis, z_axis, resultant }
 
-// --- YENİ: Pasif durum eklendi ---
 enum MotorStatus { normal, warning, outOfBounds, inactive }
 
 class DroneDashboardPage extends StatefulWidget {
@@ -22,7 +22,7 @@ class DroneDashboardPage extends StatefulWidget {
 }
 
 class _DroneDashboardPageState extends State<DroneDashboardPage> {
-  // --- STATE DEĞİŞKENLERİ ---
+  // --- STATE DEĞİŞKENLERİ (DEĞİŞİKLİK YOK) ---
   final int _numTransmitters = 4;
   DataType _selectedDataType = DataType.resultant;
 
@@ -38,7 +38,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   final Map<int, List<FlSpot>> _dataSpotsResultant = {
     for (var i = 0; i < 4; i++) i: [],
   };
-  // --- GÜNCELLENDİ: Başlangıç durumu inactive olarak ayarlandı ---
   final Map<int, MotorStatus> _motorStatus = {
     for (var i = 0; i < 4; i++) i: MotorStatus.inactive,
   };
@@ -58,13 +57,12 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   int _selectedViewIndex = 0;
   late List<bool> _viewSelections;
 
-  // --- YENİ: Her vericiden en son ne zaman veri geldiğini saklar ---
   final Map<int, DateTime> _lastDataTime = {};
-  // --- YENİ: Bir vericiyi pasif olarak işaretlemek için zaman aşımı süresi ---
   final Duration _inactiveTimeout = const Duration(seconds: 2);
 
   @override
   void initState() {
+    // (DEĞİŞİKLİK YOK)
     super.initState();
     _viewSelections = List.generate(5, (index) => index == 0);
     _connectToWebSocket();
@@ -73,6 +71,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   @override
   void dispose() {
+    // (DEĞİŞİKLİK YOK)
     _isClosing = true;
     _socketSubscription?.cancel();
     _channel?.sink.close();
@@ -81,6 +80,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   void _connectToWebSocket() {
+    // (DEĞİŞİKLİK YOK)
     if (!mounted) return;
     try {
       _channel = WebSocketChannel.connect(esp32WebSocketUrl);
@@ -117,6 +117,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   void _handleWebSocketData(String jsonData) {
+    // (DEĞİŞİKLİK YOK)
     if (!mounted || _isClosing) return;
     try {
       final data = jsonDecode(jsonData);
@@ -125,7 +126,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       final int transmitterIndex = (data['id'] as int) - 1;
       if (transmitterIndex < 0 || transmitterIndex >= _numTransmitters) return;
 
-      // --- YENİ: Veri geldiği zamanı kaydet ---
       _lastDataTime[transmitterIndex] = DateTime.now();
 
       final double ax = (data['ax'] as num).toDouble();
@@ -154,6 +154,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   void _startDataTimer() {
+    // (DEĞİŞİKLİK YOK)
     _dataTimer = Timer.periodic(Duration(milliseconds: _dataPointIntervalMs), (
       timer,
     ) {
@@ -162,11 +163,9 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         return;
       }
 
-      // --- YENİ: Pasif sensörleri kontrol etme mantığı ---
       final now = DateTime.now();
       bool statusChanged = false;
       for (int i = 0; i < _numTransmitters; i++) {
-        // Eğer vericiden daha önce veri gelmişse ve o veri zaman aşımına uğradıysa
         if (_lastDataTime.containsKey(i) &&
             now.difference(_lastDataTime[i]!) > _inactiveTimeout &&
             _motorStatus[i] != MotorStatus.inactive) {
@@ -188,8 +187,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
             list.removeWhere((spot) => spot.x < _globalTime - _displaySeconds);
           }
         }
-        // Eğer bir durum değişikliği olduysa setState zaten çağrılmış olur.
-        // Bu, gereksiz yeniden çizimleri önler.
         if (statusChanged) {
           print("Sensör durumu güncellendi: Bir veya daha fazla sensör pasif.");
         }
@@ -198,6 +195,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   String _getAppBarTitle() {
+    // (DEĞİŞİKLİK YOK)
     if (_selectedViewIndex < 4) {
       String status;
       if (_motorStatus[_selectedViewIndex] == MotorStatus.inactive) {
@@ -211,8 +209,20 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     }
   }
 
+  // --- YENİ YARDIMCI FONKSİYON ---
+  // Buton seçildiğinde state'i güncellemek için.
+  void _handleViewSelection(int index) {
+    setState(() {
+      _selectedViewIndex = index;
+      for (int i = 0; i < _viewSelections.length; i++) {
+        _viewSelections[i] = (i == index);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    // (DEĞİŞİKLİK YOK)
     bool isAllView = _selectedViewIndex == 4;
     return Scaffold(
       appBar: AppBar(
@@ -245,40 +255,74 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     );
   }
 
+  // --- BU FONKSİYON GÜNCELLENDİ ---
+  // `ToggleButtons` yerine `Row` içinde `OutlinedButton`'lar kullanıldı.
   Widget _buildViewSelector() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
       color: Theme.of(context).primaryColor,
-      child: ToggleButtons(
-        isSelected: _viewSelections,
-        onPressed: (int index) {
-          setState(() {
-            _selectedViewIndex = index;
-            for (int i = 0; i < _viewSelections.length; i++) {
-              _viewSelections[i] = (i == index);
-            }
-          });
-        },
-        borderRadius: BorderRadius.circular(8.0),
-        borderWidth: 2,
-        borderColor: Colors.white24,
-        selectedBorderColor: Colors.cyanAccent,
-        fillColor: Colors.cyan.withOpacity(0.2),
-        color: Colors.white70,
-        selectedColor: Colors.cyanAccent,
-        constraints: BoxConstraints(
-          minWidth: (MediaQuery.of(context).size.width - 24) / 5,
-          minHeight: 40.0,
-        ),
+      child: Row(
         children: List.generate(5, (index) {
+          bool isSelected = _viewSelections[index];
+
+          // V1, V2, V3, V4 Butonları
           if (index < 4) {
-            return _buildMotorTab("V${index + 1}", _motorStatus[index]!);
-          } else {
-            return const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8.0),
-              child: Text(
-                "TÜMÜ",
-                style: TextStyle(fontWeight: FontWeight.bold),
+            // Butonun kenarlık rengini ayarlardan dinamik olarak al
+            final Color borderColor = _settingsService.transmitterColors[index];
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                child: OutlinedButton(
+                  onPressed: () => _handleViewSelection(index),
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    backgroundColor: isSelected
+                        ? Colors.cyan.withOpacity(0.2)
+                        : Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    side: BorderSide(
+                      // Buton seçili değilse kendi rengini, seçili ise vurgu rengini göster
+                      color: isSelected ? Colors.cyanAccent : borderColor,
+                      width: isSelected ? 2.5 : 2.0,
+                    ),
+                  ),
+                  child: _buildMotorTab("V${index + 1}", _motorStatus[index]!),
+                ),
+              ),
+            );
+          }
+          // "TÜMÜ" Butonu
+          else {
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                child: OutlinedButton(
+                  onPressed: () => _handleViewSelection(index),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: isSelected
+                        ? Colors.cyan.withOpacity(0.2)
+                        : Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    side: BorderSide(
+                      color: isSelected ? Colors.cyanAccent : Colors.white24,
+                      width: isSelected ? 2.5 : 2.0,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12.0),
+                    child: Text(
+                      "TÜMÜ",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.cyanAccent : Colors.white70,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             );
           }
@@ -288,13 +332,13 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   Widget _buildGraph() {
+    // (DEĞİŞİKLİK YOK)
     final double minX = max(0.0, _globalTime - _displaySeconds);
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
     List<LineChartBarData> lines = [];
 
     if (_selectedViewIndex == 4) {
       for (int i = 0; i < _numTransmitters; i++) {
-        // Sadece aktif olan sensörlerin çizgisini göster
         if (_motorStatus[i] != MotorStatus.inactive) {
           lines.add(
             LineChartBarData(
@@ -381,6 +425,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   Widget _buildConnectionPrompt() => Center(
+    // (DEĞİŞİKLİK YOK)
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -391,6 +436,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     ),
   );
 
+  // --- BU FONKSİYON GÜNCELLENDİ ---
+  // Buton içeriğinin yüksekliğini ve metin rengini ayarlamak için küçük değişiklikler yapıldı.
   Widget _buildMotorTab(String title, MotorStatus status) {
     Color indicatorColor;
     switch (status) {
@@ -403,17 +450,27 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       case MotorStatus.outOfBounds:
         indicatorColor = Colors.redAccent;
         break;
-      // --- YENİ: Pasif durum için renk ---
       case MotorStatus.inactive:
         indicatorColor = Colors.grey[600]!;
         break;
     }
+
+    // Hangi motorun sekmesinin seçili olduğunu kontrol et
+    final bool isCurrentlySelected =
+        _viewSelections[_selectedViewIndex] &&
+        title == "V${_selectedViewIndex + 1}";
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(title),
+          Text(
+            title,
+            style: TextStyle(
+              color: isCurrentlySelected ? Colors.cyanAccent : Colors.white70,
+            ),
+          ),
           const SizedBox(width: 8),
           Container(
             width: 10,
