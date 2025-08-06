@@ -58,7 +58,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   };
   final Map<int, List<FlSpot>> _fftSpots = {for (var i = 0; i < 4; i++) i: []};
   static const double _samplingRate = 50.0;
-  final FftTransformer _fftTransformer = FftTransformer();
 
   @override
   void initState() {
@@ -125,8 +124,12 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       final double ay = (data['ay'] as num).toDouble();
       final double az = (data['az'] as num).toDouble();
       final double mag = (data['mag'] as num).toDouble();
+
+      // İSTEĞİNİZ ÜZERE, YERÇEKİMİ ARINDIRMA KODU KALDIRILDI.
+      // Veri ham haliyle, tıpkı eski projenizdeki gibi, FFT tamponuna ekleniyor.
       final buffer = _fftDataBuffer[transmitterIndex]!;
       buffer.add(mag);
+
       if (buffer.length > _fftSampleSize) {
         buffer.removeAt(0);
       }
@@ -159,14 +162,14 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       return;
     }
     final buffer = _fftDataBuffer[_selectedViewIndex]!;
+
     if (buffer.length < _fftSampleSize) return;
-    final List<Complex> freq = _fftTransformer.transform(buffer);
-    final List<FlSpot> newFftSpots = [];
-    for (int i = 0; i < (_fftSampleSize / 2).floor(); i++) {
-      final double frequency = i * _samplingRate / _fftSampleSize;
-      final double magnitude = freq[i].abs();
-      newFftSpots.add(FlSpot(frequency, magnitude));
-    }
+
+    final List<FlSpot> newFftSpots = FFT.computeRealFFTMagnitude(
+      buffer,
+      _samplingRate,
+    );
+
     if (_fftSpots[_selectedViewIndex]!.length != newFftSpots.length ||
         newFftSpots.isNotEmpty) {
       setState(() {
@@ -185,13 +188,13 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       }
       _calculateAndSetFft();
       final now = DateTime.now();
-      bool statusChanged = false;
       for (int i = 0; i < _numTransmitters; i++) {
         if (_lastDataTime.containsKey(i) &&
             now.difference(_lastDataTime[i]!) > _inactiveTimeout &&
             _motorStatus[i] != MotorStatus.inactive) {
-          _motorStatus[i] = MotorStatus.inactive;
-          statusChanged = true;
+          setState(() {
+            _motorStatus[i] = MotorStatus.inactive;
+          });
         }
       }
       setState(() {
@@ -226,8 +229,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   void _handleViewSelection(int index) {
     setState(() {
-      // "ALL" butonuna basılırsa, FFT modundan otomatik çık.
-      // Bu, önceki çökme hatasını düzelten koddur ve burada kalmasında fayda var.
       if (index == 4) {
         _isFftView = false;
       }
@@ -295,12 +296,14 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     if (spots.isNotEmpty) {
       maxY = spots.map((spot) => spot.y).reduce(max);
     }
+    maxY = max(0.5, maxY * 1.2);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: LineChart(
         LineChartData(
           minY: 0,
-          maxY: maxY == 0 ? 10 : (maxY * 1.2),
+          maxY: maxY,
           minX: 0,
           maxX: _samplingRate / 2,
           lineBarsData: [
@@ -323,8 +326,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 40,
-                getTitlesWidget: (v, m) => Text(v.toStringAsFixed(1)),
+                reservedSize: 45,
+                getTitlesWidget: (v, m) => Text(v.toStringAsFixed(2)),
               ),
               axisNameWidget: const Text("Genlik"),
             ),
@@ -332,7 +335,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 28,
-                interval: 1.0,
+                interval: 5,
                 getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)),
               ),
               axisNameWidget: const Text("Frekans (Hz)"),
@@ -344,26 +347,22 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               sideTitles: SideTitles(showTitles: false),
             ),
           ),
-          borderData: FlBorderData(show: false),
+          borderData: FlBorderData(show: true),
         ),
-        duration: const Duration(milliseconds: 150),
+        duration: const Duration(milliseconds: 0),
       ),
     );
   }
 
-  // --- BU FONKSİYON GÜNCELLENDİ ---
   Widget _buildViewSelector() {
-    // FFT modundaysak 4 buton, değilsek 5 buton göster.
     final int buttonCount = _isFftView ? 4 : 5;
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
       color: Theme.of(context).primaryColor,
       child: Row(
-        // Listeyi dinamik olarak oluştur.
         children: List.generate(buttonCount, (index) {
           bool isSelected = _viewSelections[index];
-          // V1-V4 butonları her zaman gösterilir.
           if (index < 4) {
             final Color borderColor = _settingsService.transmitterColors[index];
             return Expanded(
@@ -388,9 +387,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 ),
               ),
             );
-          }
-          // "ALL" butonu sadece `buttonCount` 5 ise (yani FFT modu kapalıysa) oluşturulur.
-          else {
+          } else {
             return Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2.0),
@@ -433,14 +430,11 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
     List<LineChartBarData> lines = [];
 
-    // Veri toplama mantığı aynı kalıyor
     if (_selectedViewIndex == 4) {
-      // "ALL" görünümü
       for (int i = 0; i < _numTransmitters; i++) {
         if (_motorStatus[i] != MotorStatus.inactive) {
           lines.add(
             LineChartBarData(
-              // .abs() ile verilerin mutlak değerini alıyoruz
               spots: _dataSpotsResultant[i]!
                   .map((spot) => FlSpot(spot.x, spot.y.abs()))
                   .toList(),
@@ -453,7 +447,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         }
       }
     } else {
-      // Tekil sensör görünümü
       List<FlSpot> spots;
       switch (_selectedDataType) {
         case DataType.x_axis:
@@ -471,7 +464,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       }
       lines.add(
         LineChartBarData(
-          // .abs() ile verilerin mutlak değerini alıyoruz
           spots: spots.map((spot) => FlSpot(spot.x, spot.y.abs())).toList(),
           color: _settingsService.transmitterColors[_selectedViewIndex],
           barWidth: 2,
@@ -485,10 +477,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: LineChart(
         LineChartData(
-          // =========== DEĞİŞİKLİK BURADA ===========
-          minY: 0, // Y ekseninin başlangıcı 0 olarak ayarlandı
-          maxY: 10, // Y ekseninin bitişi 10 olarak ayarlandı
-          // =========================================
+          minY: 0,
+          maxY: 10,
           minX: minX,
           maxX: maxX,
           lineBarsData: lines,
@@ -504,7 +494,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 32,
-                // Y eksenindeki aralıkları 2 birim olarak ayarlayalım (0, 2, 4, 6, 8, 10)
                 interval: 2.0,
                 getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)),
               ),
@@ -590,10 +579,13 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 }
 
+// --- ESKİ ÇALIŞAN KODUNUZDAN ALINAN FFT VE COMPLEX SINIFLARI ---
 class Complex {
   double real;
   double imag;
+
   Complex(this.real, this.imag);
+
   double abs() {
     return sqrt(real * real + imag * imag);
   }
@@ -609,46 +601,80 @@ class Complex {
   Complex operator *(Complex other) {
     return Complex(
       real * other.real - imag * other.imag,
-      real * other.imag + other.real,
+      real * other.imag + imag * other.real,
     );
   }
 }
 
-class FftTransformer {
-  List<Complex> transform(List<double> real) {
-    final int n = real.length;
-    if (n == 0) return [];
+class FFT {
+  static List<Complex> fft(List<Complex> x, bool inverse) {
+    int n = x.length;
+    if (n == 1) return [x[0]];
     if ((n & (n - 1)) != 0) {
-      return [];
+      // FFT size'ı 2'nin kuvveti değilse, hata fırlatmak yerine boş liste dönebiliriz.
+      // Bu, uygulamanın çökmesini engeller.
+      print("FFT Error: Sample size is not a power of 2. Size: $n");
+      return List.filled(n, Complex(0, 0));
     }
-    List<Complex> buffer = real.map((e) => Complex(e, 0)).toList();
-    for (int i = 1, j = 0; i < n; i++) {
-      int bit = n >> 1;
-      while (j >= bit) {
-        j -= bit;
-        bit >>= 1;
-      }
-      j += bit;
-      if (i < j) {
-        final temp = buffer[i];
-        buffer[i] = buffer[j];
-        buffer[j] = temp;
-      }
+    List<Complex> even = [];
+    List<Complex> odd = [];
+    for (int i = 0; i < n ~/ 2; i++) {
+      even.add(x[2 * i]);
+      odd.add(x[2 * i + 1]);
     }
-    for (int len = 2; len <= n; len <<= 1) {
-      final double ang = -2 * pi / len;
-      final Complex wlen = Complex(cos(ang), sin(ang));
-      for (int i = 0; i < n; i += len) {
-        Complex w = Complex(1, 0);
-        for (int j = 0; j < len / 2; j++) {
-          final Complex u = buffer[i + j];
-          final Complex v = buffer[i + j + len ~/ 2] * w;
-          buffer[i + j] = u + v;
-          buffer[i + j + len ~/ 2] = u - v;
-          w = w * wlen;
-        }
+    List<Complex> q = fft(even, inverse);
+    List<Complex> r = fft(odd, inverse);
+    List<Complex> y = List.filled(n, Complex(0, 0));
+    for (int k = 0; k < n ~/ 2; k++) {
+      double kth = -2 * pi * k / n;
+      if (inverse) kth = -kth;
+      Complex wk = Complex(cos(kth), sin(kth));
+      Complex term = wk * r[k];
+      y[k] = q[k] + term;
+      y[k + n ~/ 2] = q[k] - term;
+    }
+    if (inverse) {
+      for (int i = 0; i < n; i++) {
+        y[i] = Complex(y[i].real / 2, y[i].imag / 2);
       }
     }
-    return buffer;
+    return y;
+  }
+
+  static List<FlSpot> computeRealFFTMagnitude(
+    List<double> realData,
+    double sampleRate,
+  ) {
+    int n = realData.length;
+    if (n == 0) return [];
+
+    // Veri setini 2'nin en yakın kuvvetine pedleme
+    int fftSize = 1;
+    while (fftSize < n) {
+      fftSize <<= 1;
+    }
+
+    List<Complex> complexInput = List.generate(
+      fftSize,
+      (i) => i < n ? Complex(realData[i], 0.0) : Complex(0.0, 0.0),
+    );
+
+    List<Complex> result = fft(complexInput, false);
+
+    List<FlSpot> fftSpots = [];
+    // Sonucun sadece ilk yarısını alıyoruz (Nyquist teoremi)
+    for (int i = 0; i <= fftSize ~/ 2; i++) {
+      // Normalizasyon: Örnek sayısına bölme
+      double magnitude = result[i].abs() / n;
+
+      // DC (0 Hz) ve Nyquist frekansı hariç diğerlerini 2 ile çarp
+      if (i > 0 && i < fftSize / 2) {
+        magnitude *= 2;
+      }
+
+      double frequency = i * (sampleRate / fftSize);
+      fftSpots.add(FlSpot(frequency, magnitude));
+    }
+    return fftSpots;
   }
 }
