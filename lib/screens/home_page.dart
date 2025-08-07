@@ -15,9 +15,6 @@ class _HomePageState extends State<HomePage> {
   bool _isScanning = false;
   List<WifiNetwork> _wifiList = [];
   String? _currentSsid;
-
-  // *** YENİ DURUM DEĞİŞKENİ EKLENDİ ***
-  // Ağ bağlantı işlemi sırasında butona tekrar basılmasını engellemek için.
   bool _isConnecting = false;
 
   @override
@@ -27,7 +24,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _getCurrentSsid() async {
-    // ... Bu fonksiyon aynı kalıyor ...
     String? currentSsid;
     try {
       bool isWifiEnabled = await WiFiForIoTPlugin.isEnabled();
@@ -47,7 +43,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // ... _scanForWifi, _connectToWifi, _navigateToSettings fonksiyonları aynı kalıyor ...
   Future<void> _scanForWifi() async {
     if (_isScanning) return;
     setState(() => _isScanning = true);
@@ -64,9 +59,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _connectToWifi(WifiNetwork network) async {
     if (network.ssid != targetSsid) return;
-    setState(
-      () => _isConnecting = true,
-    ); // Bağlanma işlemi için de kilitleyelim
+    setState(() => _isConnecting = true);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -102,14 +95,24 @@ class _HomePageState extends State<HomePage> {
     Navigator.pushNamed(context, '/settings');
   }
 
+  // YENİ EKLENDİ
+  void _navigateToSavedSessions() {
+    Navigator.pushNamed(context, '/saved_sessions');
+  }
+
   @override
   Widget build(BuildContext context) {
-    // ... build fonksiyonunun içeriği aynı kalıyor, sadece _buildNavigateButton çağrılıyor ...
     bool isConnectedToTarget = _currentSsid == targetSsid;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bağlantı ve Ayarlar'),
         actions: [
+          // YENİ BUTON EKLENDİ
+          IconButton(
+            icon: const Icon(Icons.history_rounded),
+            tooltip: 'Kayıtlı Oturumlar',
+            onPressed: _navigateToSavedSessions,
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Ayarlar',
@@ -158,9 +161,7 @@ class _HomePageState extends State<HomePage> {
                             ? ElevatedButton(
                                 onPressed: _isConnecting
                                     ? null
-                                    : () => _connectToWifi(
-                                        network,
-                                      ), // Bağlanırken de butonu kilitle
+                                    : () => _connectToWifi(network),
                                 child: const Text("Bağlan"),
                               )
                             : null,
@@ -175,7 +176,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildStatusPanel(bool isConnected) {
-    // ... Bu fonksiyon aynı kalıyor ...
     return Container(
       padding: const EdgeInsets.all(16.0),
       color: isConnected
@@ -203,7 +203,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // *** BU FONKSİYON ANR ÇÖKMESİNİ ENGELLEMEK İÇİN GÜNCELLENDİ ***
   Widget _buildNavigateButton(bool isConnected) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -224,29 +223,20 @@ class _HomePageState extends State<HomePage> {
           backgroundColor: isConnected ? Colors.greenAccent : Colors.grey[800],
           foregroundColor: isConnected ? Colors.black : Colors.white54,
           minimumSize: const Size(double.infinity, 50),
-          // İşlem devam ederken butonun rengini değiştirerek pasif olduğunu daha net gösterelim
           disabledBackgroundColor: Colors.grey[600],
         ),
-        // Butonu aktif etmek için hem bağlı olmalı hem de başka bir işlem devam etmemeli.
         onPressed: (isConnected && !_isConnecting)
             ? () async {
                 setState(() => _isConnecting = true);
-
                 try {
-                  print("Ağ bağlantı kuralı oluşturuluyor...");
                   await WiFiForIoTPlugin.connect(
                     targetSsid,
                     password: "vibrationsensor",
                     security: NetworkSecurity.WPA,
                     withInternet: false,
                   );
-
-                  print("Ağ kullanımı Wi-Fi'a zorlanıyor...");
                   await WiFiForIoTPlugin.forceWifiUsage(true);
-
                   await Future.delayed(const Duration(milliseconds: 500));
-
-                  print("Bağlantı hazır. Grafik sayfasına yönlendiriliyor.");
                   await Navigator.pushNamed(context, '/dashboard');
                 } catch (e) {
                   print("Grafik sayfasına geçiş öncesi bağlantı hatası: $e");
@@ -256,21 +246,14 @@ class _HomePageState extends State<HomePage> {
                     );
                   }
                 } finally {
-                  // Bu blok, işlem başarılı da olsa hata da alsa HER ZAMAN çalışır.
-                  // Böylece kilitlenmiş bir durumda kalmayız.
-                  print(
-                    "Ana sayfaya dönüldü, Wi-Fi durumu yeniden kontrol ediliyor...",
-                  );
-                  await WiFiForIoTPlugin.forceWifiUsage(
-                    false,
-                  ); // Ağ zorlamasını kapatalım
+                  await WiFiForIoTPlugin.forceWifiUsage(false);
                   await _getCurrentSsid();
                   if (mounted) {
                     setState(() => _isConnecting = false);
                   }
                 }
               }
-            : null, // Koşul sağlanmıyorsa butonu pasif yap.
+            : null,
       ),
     );
   }

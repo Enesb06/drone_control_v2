@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io'; // Yeni eklendi
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
+import 'package:path_provider/path_provider.dart'; // Yeni eklendi
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../models/recorded_session.dart'; // Yeni eklendi
 import '../services/settings_service.dart';
 
 final esp32WebSocketUrl = Uri.parse('ws://192.168.4.1:81');
@@ -59,16 +62,31 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   final Map<int, List<FlSpot>> _fftSpots = {for (var i = 0; i < 4; i++) i: []};
   static const double _samplingRate = 50.0;
 
+  // --- KAYIT İÇİN YENİ STATE DEĞİŞKENLERİ ---
+  bool _isRecording = false;
+  bool _sessionSaveProcessStarted = false;
+  final Map<int, List<FlSpot>> _recordedSpotsResultant = {
+    for (var i = 0; i < 4; i++) i: [],
+  };
+
   @override
   void initState() {
     super.initState();
     _viewSelections = List.generate(5, (index) => index == 0);
     _connectToWebSocket();
     _startDataTimer();
+    _startRecording(); // KAYDI OTOMATİK BAŞLAT
   }
 
   @override
   void dispose() {
+    if (_isRecording && !_sessionSaveProcessStarted) {
+      _sessionSaveProcessStarted = true;
+      final contextForDialog = context;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _stopAndPromptSave(contextForDialog);
+      });
+    }
     _isClosing = true;
     _socketSubscription?.cancel();
     _channel?.sink.close();
@@ -124,12 +142,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       final double ay = (data['ay'] as num).toDouble();
       final double az = (data['az'] as num).toDouble();
       final double mag = (data['mag'] as num).toDouble();
-
-      // İSTEĞİNİZ ÜZERE, YERÇEKİMİ ARINDIRMA KODU KALDIRILDI.
-      // Veri ham haliyle, tıpkı eski projenizdeki gibi, FFT tamponuna ekleniyor.
       final buffer = _fftDataBuffer[transmitterIndex]!;
       buffer.add(mag);
-
       if (buffer.length > _fftSampleSize) {
         buffer.removeAt(0);
       }
@@ -138,6 +152,14 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         _dataSpotsY[transmitterIndex]!.add(FlSpot(_globalTime, ay));
         _dataSpotsZ[transmitterIndex]!.add(FlSpot(_globalTime, az));
         _dataSpotsResultant[transmitterIndex]!.add(FlSpot(_globalTime, mag));
+
+        // KAYIT MANTIĞI
+        if (_isRecording) {
+          _recordedSpotsResultant[transmitterIndex]!.add(
+            FlSpot(_globalTime, mag),
+          );
+        }
+
         MotorStatus newStatus;
         if (mag.abs() > _settingsService.errorThreshold)
           newStatus = MotorStatus.outOfBounds;
@@ -151,6 +173,106 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     } catch (e) {}
   }
 
+  // --- YENİ KAYIT FONKSİYONLARI ---
+  void _startRecording() {
+    if (_isRecording) return;
+    setState(() {
+      _isRecording = true;
+      _sessionSaveProcessStarted = false;
+      for (var key in _recordedSpotsResultant.keys) {
+        _recordedSpotsResultant[key]!.clear();
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Veri kaydı otomatik olarak başladı.'),
+            backgroundColor: Colors.blueAccent,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    });
+  }
+
+  Future<void> _stopAndPromptSave(BuildContext dialogContext) async {
+    if (!_isRecording || _sessionSaveProcessStarted) return;
+    _sessionSaveProcessStarted = true;
+    setState(() => _isRecording = false);
+    final bool hasDataToSave = _recordedSpotsResultant.values.any(
+      (list) => list.isNotEmpty,
+    );
+    if (!hasDataToSave) {
+      if (mounted) {
+        ScaffoldMessenger.of(dialogContext).showSnackBar(
+          const SnackBar(
+            content: Text('Kayıt durduruldu. Kaydedilecek veri yok.'),
+          ),
+        );
+      }
+      return;
+    }
+    final bool? shouldSave = await showDialog<bool>(
+      context: dialogContext,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Oturumu Kaydet'),
+        content: const Text(
+          'Bu veri kaydını bir dosya olarak saklamak istiyor musunuz?',
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Kaydetme'),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          ElevatedButton(
+            child: const Text('Kaydet'),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (shouldSave == true) {
+      await _saveSessionToFile(dialogContext);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          dialogContext,
+        ).showSnackBar(const SnackBar(content: Text('Oturum kaydedilmedi.')));
+      }
+    }
+  }
+
+  Future<void> _saveSessionToFile(BuildContext scaffoldContext) async {
+    try {
+      final session = RecordedSession(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        timestamp: DateTime.now(),
+        v1Data: List.from(_recordedSpotsResultant[0]!),
+        v2Data: List.from(_recordedSpotsResultant[1]!),
+        v3Data: List.from(_recordedSpotsResultant[2]!),
+        v4Data: List.from(_recordedSpotsResultant[3]!),
+      );
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = 'session_${session.id}.json';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsString(jsonEncode(session.toJson()));
+      if (mounted) {
+        ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+          SnackBar(content: Text('Oturum başarıyla kaydedildi: $fileName')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+          SnackBar(content: Text('Hata: Oturum kaydedilemedi. $e')),
+        );
+      }
+    }
+  }
+  // --- KAYIT FONKSİYONLARI SONU ---
+
   void _calculateAndSetFft() {
     if (_selectedViewIndex >= 4 || !_isFftView) {
       if (_fftSpots.containsKey(_selectedViewIndex) &&
@@ -162,14 +284,11 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       return;
     }
     final buffer = _fftDataBuffer[_selectedViewIndex]!;
-
     if (buffer.length < _fftSampleSize) return;
-
     final List<FlSpot> newFftSpots = FFT.computeRealFFTMagnitude(
       buffer,
       _samplingRate,
     );
-
     if (_fftSpots[_selectedViewIndex]!.length != newFftSpots.length ||
         newFftSpots.isNotEmpty) {
       setState(() {
@@ -244,9 +363,45 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     bool isAllView = _selectedViewIndex == 4;
     return Scaffold(
       appBar: AppBar(
-        title: Text(_getAppBarTitle()),
+        title: Row(
+          children: [
+            if (_isRecording)
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 1.0, end: 0.5),
+                  duration: const Duration(milliseconds: 700),
+                  builder: (context, value, child) => Opacity(
+                    opacity: value,
+                    child: const Icon(
+                      Icons.circle,
+                      color: Colors.redAccent,
+                      size: 16,
+                    ),
+                  ),
+                  onEnd: () {
+                    if (mounted && _isRecording) setState(() {});
+                  },
+                ),
+              ),
+            Text(_getAppBarTitle()),
+          ],
+        ),
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
+          if (_isRecording)
+            IconButton(
+              icon: const Icon(
+                Icons.stop_circle_outlined,
+                color: Colors.redAccent,
+              ),
+              tooltip: 'Kaydı Durdur ve Sakla',
+              onPressed: () {
+                if (!_sessionSaveProcessStarted) {
+                  _stopAndPromptSave(context);
+                }
+              },
+            ),
           if (!isAllView)
             IconButton(
               icon: Icon(_isFftView ? Icons.show_chart : Icons.ssid_chart),
@@ -297,7 +452,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       maxY = spots.map((spot) => spot.y).reduce(max);
     }
     maxY = max(0.5, maxY * 1.2);
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: LineChart(
@@ -356,7 +510,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   Widget _buildViewSelector() {
     final int buttonCount = _isFftView ? 4 : 5;
-
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
       color: Theme.of(context).primaryColor,
@@ -429,7 +582,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     final double minX = max(0.0, _globalTime - _displaySeconds);
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
     List<LineChartBarData> lines = [];
-
     if (_selectedViewIndex == 4) {
       for (int i = 0; i < _numTransmitters; i++) {
         if (_motorStatus[i] != MotorStatus.inactive) {
@@ -472,13 +624,12 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         ),
       );
     }
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: LineChart(
         LineChartData(
           minY: 0,
-          maxY: 10,
+          maxY: 20,
           minX: minX,
           maxX: maxX,
           lineBarsData: lines,
@@ -494,7 +645,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 32,
-                interval: 2.0,
+                interval: 4.0,
                 getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)),
               ),
             ),
@@ -579,6 +730,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 }
 
+// FFT sınıfları burada kalmalı
 // --- ESKİ ÇALIŞAN KODUNUZDAN ALINAN FFT VE COMPLEX SINIFLARI ---
 class Complex {
   double real;

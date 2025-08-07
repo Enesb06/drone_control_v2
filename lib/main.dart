@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:drone_control_v2/screens/home_page.dart';
 import 'package:drone_control_v2/screens/dashboard_page.dart';
-import 'package:drone_control_v2/screens/settings_page.dart'; // Yeni sayfamızı import ediyoruz
-import 'package:drone_control_v2/services/settings_service.dart'; // Servisi import ediyoruz
+import 'package:drone_control_v2/screens/settings_page.dart';
+import 'package:drone_control_v2/services/settings_service.dart';
+import 'package:drone_control_v2/screens/saved_sessions_page.dart'; // YENİ EKLENDİ
 
 // main fonksiyonunu async yapıyoruz
 void main() async {
@@ -33,7 +34,9 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => const HomePage(),
         '/dashboard': (context) => const DroneDashboardPage(),
-        '/settings': (context) => const SettingsPage(), // Yeni rotayı ekliyoruz
+        '/settings': (context) => const SettingsPage(),
+        '/saved_sessions': (context) =>
+            const SavedSessionsPage(), // YENİ ROTA EKLENDİ
       },
     );
   }
