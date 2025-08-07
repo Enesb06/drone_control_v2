@@ -363,9 +363,14 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    bool isAllView = _selectedViewIndex == 4;
+    // Bu değişkenlerin state sınıfınızda tanımlı olduğundan emin olun:
+    // enum DataType { x_axis, y_axis, z_axis, resultant }
+    // DataType _selectedDataType = DataType.resultant;
+    // bool _isFftView, _isRecording, _sessionSaveProcessStarted, _isConnected;
+    // int _selectedViewIndex;
+    // Function _getAppBarTitle, _stopAndPromptSave, _buildFftGraph, _buildGraph, _buildConnectionPrompt, _buildViewSelector;
 
-    // Koşulu burada bir değişkene atayarak kodu daha okunaklı hale getirelim
+    bool isAllView = _selectedViewIndex == 4;
     bool showSegmentedButton = !isAllView && !_isFftView;
 
     return Scaffold(
@@ -396,7 +401,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         ),
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
-          // ÜST SATIRDAKİ BUTONLAR ARTIK DAHA AZ VE SIĞIYOR
           if (_isRecording)
             IconButton(
               icon: const Icon(
@@ -410,7 +414,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 }
               },
             ),
-          if (!isAllView) // Sadece tekil verici görünümündeyken FFT butonu görünsün
+          if (!isAllView)
             IconButton(
               icon: Icon(_isFftView ? Icons.show_chart : Icons.ssid_chart),
               tooltip: _isFftView
@@ -423,38 +427,141 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               },
             ),
         ],
-        // YENİ: AppBar'ın altına yeni bir satır ekliyoruz
+        // --- DEĞİŞTİRİLEN KISIM BURASI ---
         bottom: showSegmentedButton
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(56.0),
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: SegmentedButton<DataType>(
-                    segments: const [
-                      ButtonSegment(value: DataType.x_axis, label: Text('X')),
-                      ButtonSegment(value: DataType.y_axis, label: Text('Y')),
-                      ButtonSegment(value: DataType.z_axis, label: Text('Z')),
-                      ButtonSegment(
-                        value: DataType.resultant,
-                        label: Text('Mag'), // DEĞİŞTİ: "Bileşke" -> "Mag"
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
+                  child: Center(
+                    child: Container(
+                      height: 42, // Bar'ın yüksekliği
+                      width: 280, // Bar'ın genişliği (sabit kalması için)
+                      padding: const EdgeInsets.all(4.0),
+                      decoration: BoxDecoration(
+                        color: const Color(
+                          0xFF1C1C1E,
+                        ), // Dış container'ın koyu arkaplanı
+                        borderRadius: BorderRadius.circular(25.0),
                       ),
-                    ],
-                    selected: {_selectedDataType},
-                    onSelectionChanged: (newSelection) =>
-                        setState(() => _selectedDataType = newSelection.first),
-                    style: SegmentedButton.styleFrom(
-                      // Butonların daha iyi görünmesi için küçük stil ayarları
-                      backgroundColor: Theme.of(
-                        context,
-                      ).scaffoldBackgroundColor,
-                      foregroundColor: Colors.white70,
-                      selectedForegroundColor: Colors.black,
-                      selectedBackgroundColor: Colors.cyanAccent,
+                      child: Row(
+                        children: [
+                          // --- X Butonu ---
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(
+                                () => _selectedDataType = DataType.x_axis,
+                              ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: _selectedDataType == DataType.x_axis
+                                      ? const Color(0xFF00BCD4) // Seçili renk
+                                      : Colors.transparent, // Seçili değilse
+                                  borderRadius: BorderRadius.circular(25.0),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  'X',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedDataType == DataType.x_axis
+                                        ? Colors
+                                              .black // Seçili yazı rengi
+                                        : Colors.white70, // Seçili değilse
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          // --- Y Butonu ---
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(
+                                () => _selectedDataType = DataType.y_axis,
+                              ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: _selectedDataType == DataType.y_axis
+                                      ? const Color(0xFF00BCD4)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(25.0),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  'Y',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedDataType == DataType.y_axis
+                                        ? Colors.black
+                                        : Colors.white70,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          // --- Z Butonu ---
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(
+                                () => _selectedDataType = DataType.z_axis,
+                              ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: _selectedDataType == DataType.z_axis
+                                      ? const Color(0xFF00BCD4)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(25.0),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  'Z',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedDataType == DataType.z_axis
+                                        ? Colors.black
+                                        : Colors.white70,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          // --- Mag Butonu ---
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(
+                                () => _selectedDataType = DataType.resultant,
+                              ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: _selectedDataType == DataType.resultant
+                                      ? const Color(0xFF00BCD4)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(25.0),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  'Mag',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color:
+                                        _selectedDataType == DataType.resultant
+                                        ? Colors.black
+                                        : Colors.white70,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               )
-            : null, // Koşul sağlanmıyorsa alt satırı gösterme
+            : null,
       ),
       body: _isConnected
           ? (_isFftView ? _buildFftGraph() : _buildGraph())
