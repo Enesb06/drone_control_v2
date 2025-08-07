@@ -1,4 +1,5 @@
 // lib/screens/home_page.dart
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:wifi_iot/wifi_iot.dart';
@@ -13,6 +14,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  // ... (Diğer fonksiyonlar aynı kalacak: initState, _getCurrentSsid, vs.)
   bool _isScanning = false;
   List<WifiNetwork> _wifiList = [];
   String? _currentSsid;
@@ -52,34 +54,144 @@ class _HomePageState extends State<HomePage> {
       _wifiList = [];
     });
 
-    await WiFiForIoTPlugin.setEnabled(true);
-    List<WifiNetwork> scanResult = await WiFiForIoTPlugin.loadWifiList();
-
-    if (mounted) {
-      setState(() {
-        _wifiList = scanResult;
-        _isScanning = false;
-      });
+    try {
+      await WiFiForIoTPlugin.setEnabled(true);
+      List<WifiNetwork> scanResult = await WiFiForIoTPlugin.loadWifiList();
+      if (mounted) {
+        setState(() {
+          _wifiList = scanResult;
+        });
+      }
+    } catch (e) {
+      print("Wi-Fi tarama hatası: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+        });
+      }
     }
   }
 
   Future<void> _connectToWifi(WifiNetwork network) async {
     if (network.ssid == targetSsid) {
-      await WiFiForIoTPlugin.connect(
-        targetSsid,
-        password: "vibrationsensor",
-        security: NetworkSecurity.WPA,
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Dialog(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Row(
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text("Bağlanılıyor..."),
+              ],
+            ),
+          ),
+        ),
       );
-      await _getCurrentSsid();
+
+      try {
+        await WiFiForIoTPlugin.connect(
+          targetSsid,
+          password: "vibrationsensor",
+          security: NetworkSecurity.WPA,
+        );
+      } catch (e) {
+        print("Bağlanma hatası: $e");
+      } finally {
+        if (mounted) Navigator.pop(context);
+        await _getCurrentSsid();
+      }
     }
   }
 
-  // --- YENİ FONKSİYON ---
-  // Ayarlar sayfasına gitmek için.
   void _navigateToSettings() {
     Navigator.pushNamed(context, '/settings');
   }
 
+  // *** BU FONKSİYON YENİDEN GÜNCELLENDİ ***
+  Widget _buildNavigateButton(bool isConnected) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: ElevatedButton.icon(
+        icon: const Icon(Icons.bar_chart_rounded),
+        label: const Text('Grafiği Görüntüle'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isConnected ? Colors.greenAccent : Colors.grey[800],
+          foregroundColor: isConnected ? Colors.black : Colors.white54,
+          minimumSize: const Size(double.infinity, 50),
+        ),
+        onPressed: isConnected
+            ? () async {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (BuildContext context) {
+                    return const Dialog(
+                      child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(width: 20),
+                            Text("Ağ bağlantısı hazırlanıyor..."),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+
+                try {
+                  print("Ağ bağlantı kuralı yeniden oluşturuluyor...");
+                  await WiFiForIoTPlugin.connect(
+                    targetSsid,
+                    password: "vibrationsensor",
+                    security: NetworkSecurity.WPA,
+                    withInternet:
+                        false, // İnternet olmadığını belirtmek faydalı olabilir
+                  );
+
+                  // *** ANA ÇÖZÜM NOKTASI BURASI ***
+                  // İşletim sistemini, uygulama trafiğini bu Wi-Fi'a ZORLA.
+                  print("Ağ kullanımı Wi-Fi'a zorlanıyor...");
+                  await WiFiForIoTPlugin.forceWifiUsage(true);
+
+                  // OS'e küçük bir nefes alma payı bırakalım.
+                  await Future.delayed(const Duration(milliseconds: 500));
+
+                  print("Bağlantı hazır. Grafik sayfasına yönlendiriliyor.");
+                  if (mounted) Navigator.pop(context);
+
+                  await Navigator.pushNamed(context, '/dashboard');
+                } catch (e) {
+                  print("Grafik sayfasına geçiş öncesi bağlantı hatası: $e");
+                  if (mounted) Navigator.pop(context);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Bağlantı hatası: $e')),
+                    );
+                  }
+                }
+
+                // Grafik sayfasından döndükten sonra çalışacak kod
+                print(
+                  "Ana sayfaya dönüldü, Wi-Fi durumu yeniden kontrol ediliyor...",
+                );
+                // Geri dönüldüğünde ağ zorlamasını kapatabiliriz,
+                // böylece telefon normal internetine dönebilir.
+                await WiFiForIoTPlugin.forceWifiUsage(false);
+                _getCurrentSsid();
+              }
+            : null,
+      ),
+    );
+  }
+
+  // ... (Geri kalan build ve _buildStatusPanel gibi fonksiyonlar aynı)
   @override
   Widget build(BuildContext context) {
     bool isConnectedToTarget = _currentSsid == targetSsid;
@@ -88,7 +200,6 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text('Bağlantı ve Ayarlar'),
         actions: [
-          // --- YENİ BUTON EKLENDİ ---
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Ayarlar',
@@ -120,6 +231,9 @@ class _HomePageState extends State<HomePage> {
                     itemCount: _wifiList.length,
                     itemBuilder: (context, index) {
                       final network = _wifiList[index];
+                      if (network.ssid == null || network.ssid!.isEmpty) {
+                        return const SizedBox.shrink(); // Boş SSID'leri gösterme
+                      }
                       IconData signalIcon;
                       if (network.level! > -50) {
                         signalIcon = Icons.wifi_sharp;
@@ -131,7 +245,7 @@ class _HomePageState extends State<HomePage> {
 
                       return ListTile(
                         leading: Icon(signalIcon),
-                        title: Text(network.ssid ?? "İsimsiz Ağ"),
+                        title: Text(network.ssid!),
                         subtitle: Text("Sinyal: ${network.level} dBm"),
                         trailing: network.ssid == targetSsid
                             ? ElevatedButton(
@@ -173,30 +287,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildNavigateButton(bool isConnected) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ElevatedButton.icon(
-        icon: const Icon(Icons.bar_chart_rounded),
-        label: const Text('Grafiği Görüntüle'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isConnected ? Colors.greenAccent : Colors.grey[800],
-          foregroundColor: isConnected ? Colors.black : Colors.white54,
-          minimumSize: const Size(double.infinity, 50),
-        ),
-        onPressed: isConnected
-            ? () async {
-                await Navigator.pushNamed(context, '/dashboard');
-                print(
-                  "Ana sayfaya dönüldü, Wi-Fi durumu yeniden kontrol ediliyor...",
-                );
-                _getCurrentSsid();
-              }
-            : null,
       ),
     );
   }
