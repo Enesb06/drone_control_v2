@@ -56,7 +56,7 @@ const unsigned long REAL_DATA_TIMEOUT = 2000; // 2 saniye
 bool espNowStarted = false;
 bool webSocketClientConnected = false;
 unsigned long firstClientConnectTime = 0;
-const unsigned long ESP_NOW_DELAY = 3000; // WebSocket bağlantısından 3 saniye sonra başlat
+const unsigned long ESP_NOW_DELAY = 1000; // WebSocket bağlantısından 3 saniye sonra başlat
 
 // Geliştirme: Gönderim durumunu takip etmek için bayrak
 volatile bool espNowSendInProgress = false;
@@ -67,7 +67,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
         case WStype_DISCONNECTED:
             if (DEBUG_MODE) Serial.printf("[%u] WebSocket bağlantısı koptu!\n", num);
             webSocketClientConnected = false;
+
+            // ESP-NOW yeniden başlatılabilsin diye bayrakları sıfırla
+            espNowStarted = false;
+            firstClientConnectTime = 0;
             break;
+
         case WStype_CONNECTED: {
             IPAddress ip = webSocket.remoteIP(num);
             if (DEBUG_MODE) Serial.printf("[%u] WebSocket bağlandı. IP: %d.%d.%d.%d\n", num, ip[0], ip[1], ip[2], ip[3]);
@@ -79,13 +84,16 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
             }
         }
         break;
+
         case WStype_TEXT:
             if (DEBUG_MODE) Serial.printf("[%u] Gelen metin: %s\n", num, payload);
             break;
+
         default:
             break;
     }
 }
+
 
 // ESP-NOW gönderme callback'i
 void OnDataSentToTransmitter(const uint8_t *mac_addr, esp_now_send_status_t status) {
