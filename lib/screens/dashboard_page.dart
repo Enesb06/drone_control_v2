@@ -335,14 +335,17 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   String _getAppBarTitle() {
     String baseTitle;
+
+    // Seçili olan görünüme göre temel başlığı belirle
     if (_selectedViewIndex < 4) {
-      String status = _motorStatus[_selectedViewIndex] == MotorStatus.inactive
-          ? "Pasif"
-          : "Veri Alınıyor";
-      baseTitle = 'V${_selectedViewIndex + 1} Monitör - $status';
+      // Tekil verici seçiliyse: V1, V2, vb.
+      baseTitle = 'V${_selectedViewIndex + 1}';
     } else {
-      baseTitle = 'Tüm Vericiler - Bileşke Grafik';
+      // "ALL" butonu seçiliyse
+      baseTitle = 'Tüm Vericiler';
     }
+
+    // Eğer FFT görünümü aktifse, başlığın sonuna "(FFT)" ekle
     return _isFftView ? '$baseTitle (FFT)' : baseTitle;
   }
 
@@ -361,6 +364,10 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   @override
   Widget build(BuildContext context) {
     bool isAllView = _selectedViewIndex == 4;
+
+    // Koşulu burada bir değişkene atayarak kodu daha okunaklı hale getirelim
+    bool showSegmentedButton = !isAllView && !_isFftView;
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -389,6 +396,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         ),
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
+          // ÜST SATIRDAKİ BUTONLAR ARTIK DAHA AZ VE SIĞIYOR
           if (_isRecording)
             IconButton(
               icon: const Icon(
@@ -402,7 +410,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 }
               },
             ),
-          if (!isAllView)
+          if (!isAllView) // Sadece tekil verici görünümündeyken FFT butonu görünsün
             IconButton(
               icon: Icon(_isFftView ? Icons.show_chart : Icons.ssid_chart),
               tooltip: _isFftView
@@ -414,25 +422,39 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 });
               },
             ),
-          if (!isAllView && !_isFftView)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: SegmentedButton<DataType>(
-                segments: const [
-                  ButtonSegment(value: DataType.x_axis, label: Text('X')),
-                  ButtonSegment(value: DataType.y_axis, label: Text('Y')),
-                  ButtonSegment(value: DataType.z_axis, label: Text('Z')),
-                  ButtonSegment(
-                    value: DataType.resultant,
-                    label: Text('Bileşke'),
-                  ),
-                ],
-                selected: {_selectedDataType},
-                onSelectionChanged: (newSelection) =>
-                    setState(() => _selectedDataType = newSelection.first),
-              ),
-            ),
         ],
+        // YENİ: AppBar'ın altına yeni bir satır ekliyoruz
+        bottom: showSegmentedButton
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(56.0),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: SegmentedButton<DataType>(
+                    segments: const [
+                      ButtonSegment(value: DataType.x_axis, label: Text('X')),
+                      ButtonSegment(value: DataType.y_axis, label: Text('Y')),
+                      ButtonSegment(value: DataType.z_axis, label: Text('Z')),
+                      ButtonSegment(
+                        value: DataType.resultant,
+                        label: Text('Mag'), // DEĞİŞTİ: "Bileşke" -> "Mag"
+                      ),
+                    ],
+                    selected: {_selectedDataType},
+                    onSelectionChanged: (newSelection) =>
+                        setState(() => _selectedDataType = newSelection.first),
+                    style: SegmentedButton.styleFrom(
+                      // Butonların daha iyi görünmesi için küçük stil ayarları
+                      backgroundColor: Theme.of(
+                        context,
+                      ).scaffoldBackgroundColor,
+                      foregroundColor: Colors.white70,
+                      selectedForegroundColor: Colors.black,
+                      selectedBackgroundColor: Colors.cyanAccent,
+                    ),
+                  ),
+                ),
+              )
+            : null, // Koşul sağlanmıyorsa alt satırı gösterme
       ),
       body: _isConnected
           ? (_isFftView ? _buildFftGraph() : _buildGraph())
