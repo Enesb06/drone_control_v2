@@ -1,3 +1,4 @@
+// lib/screens/home_page.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:wifi_iot/wifi_iot.dart';
@@ -95,7 +96,6 @@ class _HomePageState extends State<HomePage> {
     Navigator.pushNamed(context, '/settings');
   }
 
-  // YENİ EKLENDİ
   void _navigateToSavedSessions() {
     Navigator.pushNamed(context, '/saved_sessions');
   }
@@ -106,8 +106,9 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bağlantı ve Ayarlar'),
+        // Bu sayfaya ürün kodu ekranından gelindiği için geri tuşu olmamalı.
+        automaticallyImplyLeading: false,
         actions: [
-          // YENİ BUTON EKLENDİ
           IconButton(
             icon: const Icon(Icons.history_rounded),
             tooltip: 'Kayıtlı Oturumlar',
@@ -203,7 +204,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // --- BU FONKSİYON GÜNCELLENDİ ---
   Widget _buildNavigateButton(bool isConnected) {
+    // Önceki sayfadan (ProductCodePage) gönderilen ürün kodunu alıyoruz.
+    final productCode = ModalRoute.of(context)!.settings.arguments as String;
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: ElevatedButton.icon(
@@ -237,7 +242,12 @@ class _HomePageState extends State<HomePage> {
                   );
                   await WiFiForIoTPlugin.forceWifiUsage(true);
                   await Future.delayed(const Duration(milliseconds: 500));
-                  await Navigator.pushNamed(context, '/dashboard');
+                  // Aldığımız ürün kodunu DashboardPage'e argüman olarak gönderiyoruz.
+                  await Navigator.pushNamed(
+                    context,
+                    '/dashboard',
+                    arguments: productCode,
+                  );
                 } catch (e) {
                   print("Grafik sayfasına geçiş öncesi bağlantı hatası: $e");
                   if (mounted) {

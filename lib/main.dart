@@ -1,18 +1,15 @@
+// main.dart
 import 'package:flutter/material.dart';
 import 'package:drone_control_v2/screens/home_page.dart';
 import 'package:drone_control_v2/screens/dashboard_page.dart';
 import 'package:drone_control_v2/screens/settings_page.dart';
 import 'package:drone_control_v2/services/settings_service.dart';
-import 'package:drone_control_v2/screens/saved_sessions_page.dart'; // YENİ EKLENDİ
+import 'package:drone_control_v2/screens/saved_sessions_page.dart';
+import 'package:drone_control_v2/screens/product_code_page.dart'; // YENİ
 
-// main fonksiyonunu async yapıyoruz
 void main() async {
-  // Flutter binding'lerinin hazır olduğundan emin ol
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Uygulama başlamadan önce ayarları yükle
   await SettingsService.instance.initialize();
-
   runApp(const MyApp());
 }
 
@@ -30,13 +27,21 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
+      // Başlangıç rotası artık Ürün Kodu Sayfası
       initialRoute: '/',
+      // Rotaları yeniden düzenliyoruz
       routes: {
-        '/': (context) => const HomePage(),
-        '/dashboard': (context) => const DroneDashboardPage(),
+        '/': (context) => const ProductCodePage(),
+        '/home': (context) => const HomePage(),
+        '/dashboard': (context) {
+          // Dashboard'a geçerken gönderilen argümanı al
+          final productCode =
+              ModalRoute.of(context)!.settings.arguments as String;
+          // Bu argümanı DroneDashboardPage'e constructor ile ver
+          return DroneDashboardPage(productCode: productCode);
+        },
         '/settings': (context) => const SettingsPage(),
-        '/saved_sessions': (context) =>
-            const SavedSessionsPage(), // YENİ ROTA EKLENDİ
+        '/saved_sessions': (context) => const SavedSessionsPage(),
       },
     );
   }

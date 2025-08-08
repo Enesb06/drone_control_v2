@@ -146,10 +146,9 @@ class _SavedSessionsPageState extends State<SavedSessionsPage> {
                       Icons.analytics_outlined,
                       color: Colors.cyanAccent,
                     ),
-                    title: Text('Oturum: $formattedDate'),
-                    subtitle: Text(
-                      'Veri Sayısı (V1): ${session.v1Data.length}',
-                    ),
+                    // --- GÜNCELLENEN YER ---
+                    title: Text('Ürün Kodu: ${session.productCode}'),
+                    subtitle: Text('Tarih: $formattedDate'),
                     trailing: IconButton(
                       icon: const Icon(
                         Icons.delete_forever,

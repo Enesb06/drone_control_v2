@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 
 class RecordedSession {
   final String id;
+  final String productCode; // YENİ EKLENDİ
   final DateTime timestamp;
   // Her bir verici için bileşke (resultant) verisini tutacağız.
   final List<FlSpot> v1Data;
@@ -12,6 +13,7 @@ class RecordedSession {
 
   RecordedSession({
     required this.id,
+    required this.productCode, // YENİ EKLENDİ
     required this.timestamp,
     required this.v1Data,
     required this.v2Data,
@@ -26,6 +28,7 @@ class RecordedSession {
 
     return {
       'id': id,
+      'productCode': productCode, // YENİ EKLENDİ
       'timestamp': timestamp.toIso8601String(),
       'v1Data': spotsToJson(v1Data),
       'v2Data': spotsToJson(v2Data),
@@ -46,6 +49,8 @@ class RecordedSession {
 
     return RecordedSession(
       id: json['id'] as String,
+      productCode:
+          json['productCode'] as String? ?? 'Bilinmiyor', // YENİ EKLENDİ
       timestamp: DateTime.parse(json['timestamp'] as String),
       v1Data: jsonToSpots(json['v1Data'] as List? ?? []),
       v2Data: jsonToSpots(json['v2Data'] as List? ?? []),

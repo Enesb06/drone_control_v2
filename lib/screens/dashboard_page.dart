@@ -16,7 +16,11 @@ enum DataType { x_axis, y_axis, z_axis, resultant }
 enum MotorStatus { normal, warning, outOfBounds, inactive }
 
 class DroneDashboardPage extends StatefulWidget {
-  const DroneDashboardPage({super.key});
+  final String productCode; // YENİ EKLENDİ
+  const DroneDashboardPage({
+    super.key,
+    required this.productCode,
+  }); // YENİ EKLENDİ
 
   @override
   State<DroneDashboardPage> createState() => _DroneDashboardPageState();
@@ -248,6 +252,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     try {
       final session = RecordedSession(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
+        productCode: widget.productCode, // YENİ EKLENDİ
         timestamp: DateTime.now(),
         v1Data: List.from(_recordedSpotsResultant[0]!),
         v2Data: List.from(_recordedSpotsResultant[1]!),
