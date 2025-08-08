@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+<string>Ürün kodlarını taramak için kameraya erişim gerekiyor.</string>
 </dict>
 </plist>

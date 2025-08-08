@@ -16,6 +16,9 @@
     
     <!-- ==================================================================== -->
 
+    <uses-permission android:name="android.permission.CAMERA" />
+
+
 
     <application
         android:label="drone_control_v2"

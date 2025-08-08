@@ -1,5 +1,6 @@
 // lib/screens/product_code_page.dart
 import 'package:flutter/material.dart';
+import 'qr_scanner_page.dart'; // Yeni tarayıcı sayfasını import ediyoruz
 
 class ProductCodePage extends StatefulWidget {
   const ProductCodePage({super.key});
@@ -31,10 +32,24 @@ class _ProductCodePageState extends State<ProductCodePage> {
     super.dispose();
   }
 
+  // YENİ: QR Tarayıcıyı açan fonksiyon
+  Future<void> _openQRScanner() async {
+    // Navigator.push ile tarayıcı sayfasını aç ve bir sonuç bekle
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (context) => const QRScannerPage()),
+    );
+
+    // Eğer bir sonuç döndüyse (kullanıcı geri tuşuna basmadıysa)
+    if (result != null && result.isNotEmpty && mounted) {
+      // Dönen kodu TextField'a yaz.
+      // Listener otomatik olarak butonu aktif edecektir.
+      _controller.text = result;
+    }
+  }
+
   void _startTest() {
     if (!_isButtonEnabled) return;
-    // Kullanıcı bu sayfaya geri dönememesi için pushReplacementNamed kullanıyoruz
-    // ve ürün kodunu HomePage'e argüman olarak gönderiyoruz.
     Navigator.pushReplacementNamed(
       context,
       '/home',
@@ -63,7 +78,7 @@ class _ProductCodePageState extends State<ProductCodePage> {
               ),
               const SizedBox(height: 24),
               const Text(
-                'Lütfen teste başlamadan önce ürün kodunu girin.',
+                'Lütfen ürün kodunu girin veya QR kodu taratın.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 18, color: Colors.white70),
               ),
@@ -83,6 +98,13 @@ class _ProductCodePageState extends State<ProductCodePage> {
                   ),
                   filled: true,
                   fillColor: Colors.white10,
+                  // YENİ: Metin alanının sağına QR ikon butonu ekliyoruz
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.qr_code_scanner),
+                    tooltip: 'QR Kodu Tara',
+                    onPressed: _openQRScanner,
+                    color: Colors.cyanAccent,
+                  ),
                 ),
               ),
               const SizedBox(height: 32),
