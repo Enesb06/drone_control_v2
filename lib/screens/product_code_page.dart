@@ -1,6 +1,6 @@
 // lib/screens/product_code_page.dart
 import 'package:flutter/material.dart';
-import 'qr_scanner_page.dart'; // Yeni tarayıcı sayfasını import ediyoruz
+import 'qr_scanner_page.dart';
 
 class ProductCodePage extends StatefulWidget {
   const ProductCodePage({super.key});
@@ -32,18 +32,13 @@ class _ProductCodePageState extends State<ProductCodePage> {
     super.dispose();
   }
 
-  // YENİ: QR Tarayıcıyı açan fonksiyon
   Future<void> _openQRScanner() async {
-    // Navigator.push ile tarayıcı sayfasını aç ve bir sonuç bekle
     final result = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (context) => const QRScannerPage()),
     );
 
-    // Eğer bir sonuç döndüyse (kullanıcı geri tuşuna basmadıysa)
     if (result != null && result.isNotEmpty && mounted) {
-      // Dönen kodu TextField'a yaz.
-      // Listener otomatik olarak butonu aktif edecektir.
       _controller.text = result;
     }
   }
@@ -71,12 +66,25 @@ class _ProductCodePageState extends State<ProductCodePage> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // --- YAZI EN ÜSTE TAŞINDI ---
+              const Text(
+                'Drone Test Uygulamasına Hoşgeldiniz',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 24, // Boyutu biraz daha büyüttüm
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 40), // Başlık sonrası boşluğu artırdım
+
               Icon(
                 Icons.qr_code_scanner_rounded,
                 size: 80,
                 color: Colors.cyanAccent.withOpacity(0.8),
               ),
               const SizedBox(height: 24),
+
               const Text(
                 'Lütfen ürün kodunu girin veya QR kodu taratın.',
                 textAlign: TextAlign.center,
@@ -98,7 +106,6 @@ class _ProductCodePageState extends State<ProductCodePage> {
                   ),
                   filled: true,
                   fillColor: Colors.white10,
-                  // YENİ: Metin alanının sağına QR ikon butonu ekliyoruz
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.qr_code_scanner),
                     tooltip: 'QR Kodu Tara',
