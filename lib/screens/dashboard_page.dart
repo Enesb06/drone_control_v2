@@ -49,8 +49,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   bool _isConnected = false;
   String _connectionStatus = "Bağlanılıyor...";
   double _globalTime = 0;
-  final int _dataPointIntervalMs = 5;
-  final int _displaySeconds = 5;
+  final int _dataPointIntervalMs = 50;
+  final int _displaySeconds = 4;
   Timer? _dataTimer;
   bool _isClosing = false;
   final SettingsService _settingsService = SettingsService.instance;
