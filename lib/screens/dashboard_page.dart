@@ -712,6 +712,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     );
   }
 
+  // lib/screens/dashboard_page.dart dosyasında
+
   Widget _buildGraph() {
     final double minX = max(0.0, _globalTime - _displaySeconds);
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
@@ -767,6 +769,53 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
           minX: minX,
           maxX: maxX,
           lineBarsData: lines,
+
+          // --- YENİ EKLENEN KISIM ---
+          extraLinesData: ExtraLinesData(
+            horizontalLines: [
+              // Uyarı Eşiği Çizgisi
+              HorizontalLine(
+                y: _settingsService.warningThreshold,
+                color: Colors.yellowAccent.withOpacity(0.8),
+                strokeWidth: 1.5,
+                dashArray: [
+                  5,
+                  5,
+                ], // Kesikli çizgi [çizgi uzunluğu, boşluk uzunluğu]
+                label: HorizontalLineLabel(
+                  show: true,
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(right: 5, bottom: 2),
+                  style: TextStyle(
+                    color: Colors.yellowAccent.withOpacity(0.9),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  labelResolver: (line) => 'Uyarı',
+                ),
+              ),
+              // Hata Eşiği Çizgisi
+              HorizontalLine(
+                y: _settingsService.errorThreshold,
+                color: Colors.redAccent.withOpacity(0.8),
+                strokeWidth: 1.5,
+                dashArray: [5, 5],
+                label: HorizontalLineLabel(
+                  show: true,
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(right: 5, bottom: 2),
+                  style: TextStyle(
+                    color: Colors.redAccent.withOpacity(0.9),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  labelResolver: (line) => 'Hata',
+                ),
+              ),
+            ],
+          ),
+
+          // --- YENİ KISIM SONU ---
           gridData: FlGridData(
             show: true,
             getDrawingHorizontalLine: (value) =>

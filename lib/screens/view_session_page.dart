@@ -80,6 +80,8 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
     });
   }
 
+  // lib/screens/view_session_page.dart dosyasında
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -119,6 +121,50 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
                       dotData: const FlDotData(show: false),
                     ),
                   ],
+
+                  // --- YENİ EKLENEN KISIM ---
+                  extraLinesData: ExtraLinesData(
+                    horizontalLines: [
+                      // Uyarı Eşiği Çizgisi
+                      HorizontalLine(
+                        y: _settingsService.warningThreshold,
+                        color: Colors.yellowAccent.withOpacity(0.8),
+                        strokeWidth: 1.5,
+                        dashArray: [5, 5],
+                        label: HorizontalLineLabel(
+                          show: true,
+                          alignment: Alignment.topRight,
+                          padding: const EdgeInsets.only(right: 5, bottom: 2),
+                          style: TextStyle(
+                            color: Colors.yellowAccent.withOpacity(0.9),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          labelResolver: (line) => 'Uyarı',
+                        ),
+                      ),
+                      // Hata Eşiği Çizgisi
+                      HorizontalLine(
+                        y: _settingsService.errorThreshold,
+                        color: Colors.redAccent.withOpacity(0.8),
+                        strokeWidth: 1.5,
+                        dashArray: [5, 5],
+                        label: HorizontalLineLabel(
+                          show: true,
+                          alignment: Alignment.topRight,
+                          padding: const EdgeInsets.only(right: 5, bottom: 2),
+                          style: TextStyle(
+                            color: Colors.redAccent.withOpacity(0.9),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          labelResolver: (line) => 'Hata',
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // --- YENİ KISIM SONU ---
                   titlesData: FlTitlesData(
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
@@ -156,7 +202,7 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() {
           _selectedIndex = index;
-          _setupInitialBoundaries(); // Verici değiştiğinde zoom'u ve sınırları sıfırla
+          _setupInitialBoundaries();
         }),
         backgroundColor: Theme.of(context).primaryColor,
         selectedItemColor: Colors.cyanAccent,
