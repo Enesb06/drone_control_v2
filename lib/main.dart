@@ -6,7 +6,7 @@ import 'package:drone_control_v2/screens/settings_page.dart';
 import 'package:drone_control_v2/services/settings_service.dart';
 import 'package:drone_control_v2/screens/saved_sessions_page.dart';
 import 'package:drone_control_v2/screens/product_code_page.dart';
-import 'package:drone_control_v2/screens/wifi_selection_page.dart'; // YENİ İMPORT
+import 'package:drone_control_v2/screens/wifi_selection_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,11 +32,12 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => const ProductCodePage(),
         '/home': (context) => const HomePage(),
-        '/wifi_selection': (context) => const WifiSelectionPage(), // YENİ ROTA
+        '/wifi_selection': (context) => const WifiSelectionPage(),
         '/dashboard': (context) {
-          final productCode =
-              ModalRoute.of(context)!.settings.arguments as String;
-          return DroneDashboardPage(productCode: productCode);
+          // YENİ: Argüman tipi değişti
+          final args =
+              ModalRoute.of(context)!.settings.arguments as DashboardArguments;
+          return DroneDashboardPage(args: args);
         },
         '/settings': (context) => const SettingsPage(),
         '/saved_sessions': (context) => const SavedSessionsPage(),

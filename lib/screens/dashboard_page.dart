@@ -1,33 +1,31 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io'; // Yeni eklendi
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
-import 'package:path_provider/path_provider.dart'; // Yeni eklendi
-import 'package:web_socket_channel/web_socket_channel.dart';
-import '../models/recorded_session.dart'; // Yeni eklendi
+import 'package:path_provider/path_provider.dart';
+import '../models/recorded_session.dart';
 import '../services/settings_service.dart';
+import 'home_page.dart'; // Argüman sınıfını almak için
 
-final esp32WebSocketUrl = Uri.parse('ws://192.168.4.1:81');
+// WebSocket ile ilgili tüm kodlar bu sayfadan kaldırıldı.
 
 enum DataType { x_axis, y_axis, z_axis, resultant }
 
+// Bu Enum'a HomePage'den de erişildiği için oraya taşındı, ama burada da kalabilir.
 enum MotorStatus { normal, warning, outOfBounds, inactive }
 
 class DroneDashboardPage extends StatefulWidget {
-  final String productCode; // YENİ EKLENDİ
-  const DroneDashboardPage({
-    super.key,
-    required this.productCode,
-  }); // YENİ EKLENDİ
+  // Argümanları almak için constructor güncellendi
+  final DashboardArguments args;
+  const DroneDashboardPage({super.key, required this.args});
 
   @override
   State<DroneDashboardPage> createState() => _DroneDashboardPageState();
 }
 
 class _DroneDashboardPageState extends State<DroneDashboardPage> {
-  final int _numTransmitters = 4;
   DataType _selectedDataType = DataType.resultant;
   final Map<int, List<FlSpot>> _dataSpotsX = {
     for (var i = 0; i < 4; i++) i: [],
@@ -41,23 +39,19 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   final Map<int, List<FlSpot>> _dataSpotsResultant = {
     for (var i = 0; i < 4; i++) i: [],
   };
-  final Map<int, MotorStatus> _motorStatus = {
-    for (var i = 0; i < 4; i++) i: MotorStatus.inactive,
-  };
-  WebSocketChannel? _channel;
-  StreamSubscription? _socketSubscription;
-  bool _isConnected = false;
-  String _connectionStatus = "Bağlanılıyor...";
+
+  // Motor durumu artık HomePage'den gelen stream ile güncellenecek
+  late Map<int, MotorStatus> _motorStatus;
+
+  StreamSubscription? _dataSubscription;
   double _globalTime = 0;
-  final int _dataPointIntervalMs = 50;
+  final int _dataPointIntervalMs = 30;
   final int _displaySeconds = 4;
-  Timer? _dataTimer;
-  bool _isClosing = false;
+  Timer? _guiTimer;
   final SettingsService _settingsService = SettingsService.instance;
   int _selectedViewIndex = 0;
   late List<bool> _viewSelections;
-  final Map<int, DateTime> _lastDataTime = {};
-  final Duration _inactiveTimeout = const Duration(seconds: 2);
+
   bool _isFftView = false;
   static const int _fftSampleSize = 128;
   final Map<int, List<double>> _fftDataBuffer = {
@@ -66,7 +60,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   final Map<int, List<FlSpot>> _fftSpots = {for (var i = 0; i < 4; i++) i: []};
   static const double _samplingRate = 50.0;
 
-  // --- KAYIT İÇİN YENİ STATE DEĞİŞKENLERİ ---
   bool _isRecording = false;
   bool _sessionSaveProcessStarted = false;
   final Map<int, List<FlSpot>> _recordedSpotsResultant = {
@@ -77,9 +70,15 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   void initState() {
     super.initState();
     _viewSelections = List.generate(5, (index) => index == 0);
-    _connectToWebSocket();
-    _startDataTimer();
-    _startRecording(); // KAYDI OTOMATİK BAŞLAT
+    _motorStatus = Map.from(
+      widget.args.initialMotorStatus,
+    ); // Başlangıç durumunu al
+
+    // HomePage'den gelen veri akışını dinle
+    _dataSubscription = widget.args.dataStream.listen(_handleData);
+
+    _startGuiTimer();
+    _startRecording();
   }
 
   @override
@@ -91,93 +90,81 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         _stopAndPromptSave(contextForDialog);
       });
     }
-    _isClosing = true;
-    _socketSubscription?.cancel();
-    _channel?.sink.close();
-    _dataTimer?.cancel();
+    _dataSubscription?.cancel();
+    _guiTimer?.cancel();
     super.dispose();
   }
 
-  void _connectToWebSocket() {
+  // Veri işleme fonksiyonu artık stream'den gelen veriyi kullanıyor
+  void _handleData(Map<String, dynamic> data) {
     if (!mounted) return;
-    try {
-      _channel = WebSocketChannel.connect(esp32WebSocketUrl);
-      _socketSubscription = _channel!.stream.listen(
-        (message) {
-          if (!mounted || _isClosing) return;
-          if (!_isConnected) {
-            setState(() {
-              _isConnected = true;
-              _connectionStatus = "Bağlı - Veri Bekleniyor";
-            });
-          }
-          _handleWebSocketData(message);
-        },
-        onDone: () {
-          if (mounted && !_isClosing) {
-            _isClosing = true;
-            Navigator.of(context).pop();
-          }
-        },
-        onError: (error) {
-          if (mounted && !_isClosing) {
-            _isClosing = true;
-            Navigator.of(context).pop();
-          }
-        },
-      );
-    } catch (e) {
-      if (mounted && !_isClosing) {
-        _isClosing = true;
-        Navigator.of(context).pop();
-      }
+
+    if (data.containsKey('empty') && data['empty'] == true) return;
+    if (!data.containsKey('id')) return;
+
+    final int transmitterIndex = (data['id'] as int) - 1;
+    if (transmitterIndex < 0 || transmitterIndex >= 4) return;
+
+    final double ax = (data['ax'] as num).toDouble();
+    final double ay = (data['ay'] as num).toDouble();
+    final double az = (data['az'] as num).toDouble();
+    final double mag = (data['mag'] as num).toDouble();
+
+    final buffer = _fftDataBuffer[transmitterIndex]!;
+    buffer.add(mag);
+    if (buffer.length > _fftSampleSize) {
+      buffer.removeAt(0);
+    }
+
+    _dataSpotsX[transmitterIndex]!.add(FlSpot(_globalTime, ax));
+    _dataSpotsY[transmitterIndex]!.add(FlSpot(_globalTime, ay));
+    _dataSpotsZ[transmitterIndex]!.add(FlSpot(_globalTime, az));
+    _dataSpotsResultant[transmitterIndex]!.add(FlSpot(_globalTime, mag));
+
+    if (_isRecording) {
+      _recordedSpotsResultant[transmitterIndex]!.add(FlSpot(_globalTime, mag));
+    }
+
+    MotorStatus newStatus;
+    if (mag.abs() > _settingsService.errorThreshold)
+      newStatus = MotorStatus.outOfBounds;
+    else if (mag.abs() > _settingsService.warningThreshold)
+      newStatus = MotorStatus.warning;
+    else
+      newStatus = MotorStatus.normal;
+
+    if (_motorStatus[transmitterIndex] != newStatus) {
+      _motorStatus[transmitterIndex] = newStatus;
     }
   }
 
-  void _handleWebSocketData(String jsonData) {
-    if (!mounted || _isClosing) return;
-    try {
-      final data = jsonDecode(jsonData);
-      if (data.containsKey('empty') && data['empty'] == true) return;
-      final int transmitterIndex = (data['id'] as int) - 1;
-      if (transmitterIndex < 0 || transmitterIndex >= _numTransmitters) return;
-      _lastDataTime[transmitterIndex] = DateTime.now();
-      final double ax = (data['ax'] as num).toDouble();
-      final double ay = (data['ay'] as num).toDouble();
-      final double az = (data['az'] as num).toDouble();
-      final double mag = (data['mag'] as num).toDouble();
-      final buffer = _fftDataBuffer[transmitterIndex]!;
-      buffer.add(mag);
-      if (buffer.length > _fftSampleSize) {
-        buffer.removeAt(0);
+  void _startGuiTimer() {
+    _guiTimer = Timer.periodic(Duration(milliseconds: _dataPointIntervalMs), (
+      timer,
+    ) {
+      if (!mounted) {
+        timer.cancel();
+        return;
       }
+      _calculateAndSetFft();
+
       setState(() {
-        _dataSpotsX[transmitterIndex]!.add(FlSpot(_globalTime, ax));
-        _dataSpotsY[transmitterIndex]!.add(FlSpot(_globalTime, ay));
-        _dataSpotsZ[transmitterIndex]!.add(FlSpot(_globalTime, az));
-        _dataSpotsResultant[transmitterIndex]!.add(FlSpot(_globalTime, mag));
-
-        // KAYIT MANTIĞI
-        if (_isRecording) {
-          _recordedSpotsResultant[transmitterIndex]!.add(
-            FlSpot(_globalTime, mag),
-          );
+        _globalTime += (_dataPointIntervalMs / 1000.0);
+        final allLists = [
+          _dataSpotsX,
+          _dataSpotsY,
+          _dataSpotsZ,
+          _dataSpotsResultant,
+        ];
+        for (var dataMap in allLists) {
+          for (var list in dataMap.values) {
+            list.removeWhere((spot) => spot.x < _globalTime - _displaySeconds);
+          }
         }
-
-        MotorStatus newStatus;
-        if (mag.abs() > _settingsService.errorThreshold)
-          newStatus = MotorStatus.outOfBounds;
-        else if (mag.abs() > _settingsService.warningThreshold)
-          newStatus = MotorStatus.warning;
-        else
-          newStatus = MotorStatus.normal;
-        if (_motorStatus[transmitterIndex] != newStatus)
-          _motorStatus[transmitterIndex] = newStatus;
       });
-    } catch (e) {}
+    });
   }
 
-  // --- YENİ KAYIT FONKSİYONLARI ---
   void _startRecording() {
     if (_isRecording) return;
     setState(() {
@@ -252,7 +239,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     try {
       final session = RecordedSession(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        productCode: widget.productCode, // YENİ EKLENDİ
+        productCode: widget.args.productCode, // Argümandan alınıyor
         timestamp: DateTime.now(),
         v1Data: List.from(_recordedSpotsResultant[0]!),
         v2Data: List.from(_recordedSpotsResultant[1]!),
@@ -276,15 +263,12 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       }
     }
   }
-  // --- KAYIT FONKSİYONLARI SONU ---
 
   void _calculateAndSetFft() {
     if (_selectedViewIndex >= 4 || !_isFftView) {
       if (_fftSpots.containsKey(_selectedViewIndex) &&
           (_fftSpots[_selectedViewIndex]?.isNotEmpty ?? false)) {
-        setState(() {
-          _fftSpots[_selectedViewIndex] = [];
-        });
+        setState(() => _fftSpots[_selectedViewIndex] = []);
       }
       return;
     }
@@ -294,71 +278,23 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       buffer,
       _samplingRate,
     );
+    if (!mounted) return;
     if (_fftSpots[_selectedViewIndex]!.length != newFftSpots.length ||
         newFftSpots.isNotEmpty) {
-      setState(() {
-        _fftSpots[_selectedViewIndex] = newFftSpots;
-      });
+      setState(() => _fftSpots[_selectedViewIndex] = newFftSpots);
     }
-  }
-
-  void _startDataTimer() {
-    _dataTimer = Timer.periodic(Duration(milliseconds: _dataPointIntervalMs), (
-      timer,
-    ) {
-      if (!mounted || _isClosing) {
-        timer.cancel();
-        return;
-      }
-      _calculateAndSetFft();
-      final now = DateTime.now();
-      for (int i = 0; i < _numTransmitters; i++) {
-        if (_lastDataTime.containsKey(i) &&
-            now.difference(_lastDataTime[i]!) > _inactiveTimeout &&
-            _motorStatus[i] != MotorStatus.inactive) {
-          setState(() {
-            _motorStatus[i] = MotorStatus.inactive;
-          });
-        }
-      }
-      setState(() {
-        _globalTime += (_dataPointIntervalMs / 1000.0);
-        final allLists = [
-          _dataSpotsX,
-          _dataSpotsY,
-          _dataSpotsZ,
-          _dataSpotsResultant,
-        ];
-        for (var dataMap in allLists) {
-          for (var list in dataMap.values) {
-            list.removeWhere((spot) => spot.x < _globalTime - _displaySeconds);
-          }
-        }
-      });
-    });
   }
 
   String _getAppBarTitle() {
-    String baseTitle;
-
-    // Seçili olan görünüme göre temel başlığı belirle
-    if (_selectedViewIndex < 4) {
-      // Tekil verici seçiliyse: V1, V2, vb.
-      baseTitle = 'V${_selectedViewIndex + 1}';
-    } else {
-      // "ALL" butonu seçiliyse
-      baseTitle = 'Tüm Vericiler';
-    }
-
-    // Eğer FFT görünümü aktifse, başlığın sonuna "(FFT)" ekle
+    String baseTitle = (_selectedViewIndex < 4)
+        ? 'V${_selectedViewIndex + 1}'
+        : 'Tüm Vericiler';
     return _isFftView ? '$baseTitle (FFT)' : baseTitle;
   }
 
   void _handleViewSelection(int index) {
     setState(() {
-      if (index == 4) {
-        _isFftView = false;
-      }
+      if (index == 4) _isFftView = false;
       _selectedViewIndex = index;
       for (int i = 0; i < _viewSelections.length; i++) {
         _viewSelections[i] = (i == index);
@@ -368,16 +304,11 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Bu değişkenlerin state sınıfınızda tanımlı olduğundan emin olun:
-    // enum DataType { x_axis, y_axis, z_axis, resultant }
-    // DataType _selectedDataType = DataType.resultant;
-    // bool _isFftView, _isRecording, _sessionSaveProcessStarted, _isConnected;
-    // int _selectedViewIndex;
-    // Function _getAppBarTitle, _stopAndPromptSave, _buildFftGraph, _buildGraph, _buildConnectionPrompt, _buildViewSelector;
-
     bool isAllView = _selectedViewIndex == 4;
     bool showSegmentedButton = !isAllView && !_isFftView;
 
+    // Bağlantı kontrolü (_isConnected) ve _buildConnectionPrompt kaldırıldı.
+    // Sayfa her zaman doğrudan içeriği gösterir.
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -414,9 +345,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               ),
               tooltip: 'Kaydı Durdur ve Sakla',
               onPressed: () {
-                if (!_sessionSaveProcessStarted) {
-                  _stopAndPromptSave(context);
-                }
+                if (!_sessionSaveProcessStarted) _stopAndPromptSave(context);
               },
             ),
           if (!isAllView)
@@ -425,14 +354,9 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               tooltip: _isFftView
                   ? 'Zaman Grafiğini Göster'
                   : 'FFT Grafiğini Göster',
-              onPressed: () {
-                setState(() {
-                  _isFftView = !_isFftView;
-                });
-              },
+              onPressed: () => setState(() => _isFftView = !_isFftView),
             ),
         ],
-        // --- DEĞİŞTİRİLEN KISIM BURASI ---
         bottom: showSegmentedButton
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(56.0),
@@ -443,123 +367,19 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                   ),
                   child: Center(
                     child: Container(
-                      height: 42, // Bar'ın yüksekliği
-                      width: 280, // Bar'ın genişliği (sabit kalması için)
+                      height: 42,
+                      width: 280,
                       padding: const EdgeInsets.all(4.0),
                       decoration: BoxDecoration(
-                        color: const Color(
-                          0xFF1C1C1E,
-                        ), // Dış container'ın koyu arkaplanı
+                        color: const Color(0xFF1C1C1E),
                         borderRadius: BorderRadius.circular(25.0),
                       ),
                       child: Row(
                         children: [
-                          // --- X Butonu ---
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(
-                                () => _selectedDataType = DataType.x_axis,
-                              ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: _selectedDataType == DataType.x_axis
-                                      ? const Color(0xFF00BCD4) // Seçili renk
-                                      : Colors.transparent, // Seçili değilse
-                                  borderRadius: BorderRadius.circular(25.0),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'X',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: _selectedDataType == DataType.x_axis
-                                        ? Colors
-                                              .black // Seçili yazı rengi
-                                        : Colors.white70, // Seçili değilse
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          // --- Y Butonu ---
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(
-                                () => _selectedDataType = DataType.y_axis,
-                              ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: _selectedDataType == DataType.y_axis
-                                      ? const Color(0xFF00BCD4)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(25.0),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'Y',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: _selectedDataType == DataType.y_axis
-                                        ? Colors.black
-                                        : Colors.white70,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          // --- Z Butonu ---
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(
-                                () => _selectedDataType = DataType.z_axis,
-                              ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: _selectedDataType == DataType.z_axis
-                                      ? const Color(0xFF00BCD4)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(25.0),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'Z',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: _selectedDataType == DataType.z_axis
-                                        ? Colors.black
-                                        : Colors.white70,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          // --- Mag Butonu ---
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(
-                                () => _selectedDataType = DataType.resultant,
-                              ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: _selectedDataType == DataType.resultant
-                                      ? const Color(0xFF00BCD4)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(25.0),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'Mag',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color:
-                                        _selectedDataType == DataType.resultant
-                                        ? Colors.black
-                                        : Colors.white70,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+                          _buildSegmentedButton(DataType.x_axis, 'X'),
+                          _buildSegmentedButton(DataType.y_axis, 'Y'),
+                          _buildSegmentedButton(DataType.z_axis, 'Z'),
+                          _buildSegmentedButton(DataType.resultant, 'Mag'),
                         ],
                       ),
                     ),
@@ -568,10 +388,31 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               )
             : null,
       ),
-      body: _isConnected
-          ? (_isFftView ? _buildFftGraph() : _buildGraph())
-          : _buildConnectionPrompt(),
+      body: _isFftView ? _buildFftGraph() : _buildGraph(),
       bottomNavigationBar: _buildViewSelector(),
+    );
+  }
+
+  Widget _buildSegmentedButton(DataType type, String label) {
+    bool isSelected = _selectedDataType == type;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedDataType = type),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF00BCD4) : Colors.transparent,
+            borderRadius: BorderRadius.circular(25.0),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: isSelected ? Colors.black : Colors.white70,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -582,9 +423,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       );
     final List<FlSpot> spots = _fftSpots[_selectedViewIndex] ?? [];
     double maxY = 0;
-    if (spots.isNotEmpty) {
-      maxY = spots.map((spot) => spot.y).reduce(max);
-    }
+    if (spots.isNotEmpty) maxY = spots.map((spot) => spot.y).reduce(max);
     maxY = max(0.5, maxY * 1.2);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -712,14 +551,57 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     );
   }
 
-  // lib/screens/dashboard_page.dart dosyasında
+  Widget _buildMotorTab(String title, MotorStatus status) {
+    Color indicatorColor;
+    switch (status) {
+      case MotorStatus.normal:
+        indicatorColor = Colors.greenAccent;
+        break;
+      case MotorStatus.warning:
+        indicatorColor = Colors.yellowAccent;
+        break;
+      case MotorStatus.outOfBounds:
+        indicatorColor = Colors.redAccent;
+        break;
+      case MotorStatus.inactive:
+        indicatorColor = Colors.grey[600]!;
+        break;
+    }
+    final bool isCurrentlySelected =
+        _viewSelections.length > _selectedViewIndex &&
+        _viewSelections[_selectedViewIndex] &&
+        title == "V${_selectedViewIndex + 1}";
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: isCurrentlySelected ? Colors.cyanAccent : Colors.white70,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: indicatorColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildGraph() {
     final double minX = max(0.0, _globalTime - _displaySeconds);
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
     List<LineChartBarData> lines = [];
     if (_selectedViewIndex == 4) {
-      for (int i = 0; i < _numTransmitters; i++) {
+      for (int i = 0; i < 4; i++) {
         if (_motorStatus[i] != MotorStatus.inactive) {
           lines.add(
             LineChartBarData(
@@ -769,19 +651,13 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
           minX: minX,
           maxX: maxX,
           lineBarsData: lines,
-
-          // --- YENİ EKLENEN KISIM ---
           extraLinesData: ExtraLinesData(
             horizontalLines: [
-              // Uyarı Eşiği Çizgisi
               HorizontalLine(
                 y: _settingsService.warningThreshold,
                 color: Colors.yellowAccent.withOpacity(0.8),
                 strokeWidth: 1.5,
-                dashArray: [
-                  5,
-                  5,
-                ], // Kesikli çizgi [çizgi uzunluğu, boşluk uzunluğu]
+                dashArray: [5, 5],
                 label: HorizontalLineLabel(
                   show: true,
                   alignment: Alignment.topRight,
@@ -794,7 +670,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                   labelResolver: (line) => 'Uyarı',
                 ),
               ),
-              // Hata Eşiği Çizgisi
               HorizontalLine(
                 y: _settingsService.errorThreshold,
                 color: Colors.redAccent.withOpacity(0.8),
@@ -814,8 +689,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               ),
             ],
           ),
-
-          // --- YENİ KISIM SONU ---
           gridData: FlGridData(
             show: true,
             getDrawingHorizontalLine: (value) =>
@@ -853,92 +726,24 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       ),
     );
   }
-
-  Widget _buildConnectionPrompt() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 24),
-          Text(_connectionStatus),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMotorTab(String title, MotorStatus status) {
-    Color indicatorColor;
-    switch (status) {
-      case MotorStatus.normal:
-        indicatorColor = Colors.greenAccent;
-        break;
-      case MotorStatus.warning:
-        indicatorColor = Colors.yellowAccent;
-        break;
-      case MotorStatus.outOfBounds:
-        indicatorColor = Colors.redAccent;
-        break;
-      case MotorStatus.inactive:
-        indicatorColor = Colors.grey[600]!;
-        break;
-    }
-    final bool isCurrentlySelected =
-        _viewSelections.length > _selectedViewIndex &&
-        _viewSelections[_selectedViewIndex] &&
-        title == "V${_selectedViewIndex + 1}";
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: isCurrentlySelected ? Colors.cyanAccent : Colors.white70,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: indicatorColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-// FFT sınıfları burada kalmalı
-// --- ESKİ ÇALIŞAN KODUNUZDAN ALINAN FFT VE COMPLEX SINIFLARI ---
+// FFT Sınıfları
 class Complex {
   double real;
   double imag;
 
   Complex(this.real, this.imag);
 
-  double abs() {
-    return sqrt(real * real + imag * imag);
-  }
-
-  Complex operator +(Complex other) {
-    return Complex(real + other.real, imag + other.imag);
-  }
-
-  Complex operator -(Complex other) {
-    return Complex(real - other.real, imag - other.imag);
-  }
-
-  Complex operator *(Complex other) {
-    return Complex(
-      real * other.real - imag * other.imag,
-      real * other.imag + imag * other.real,
-    );
-  }
+  double abs() => sqrt(real * real + imag * imag);
+  Complex operator +(Complex other) =>
+      Complex(real + other.real, imag + other.imag);
+  Complex operator -(Complex other) =>
+      Complex(real - other.real, imag - other.imag);
+  Complex operator *(Complex other) => Complex(
+    real * other.real - imag * other.imag,
+    real * other.imag + imag * other.real,
+  );
 }
 
 class FFT {
@@ -946,8 +751,6 @@ class FFT {
     int n = x.length;
     if (n == 1) return [x[0]];
     if ((n & (n - 1)) != 0) {
-      // FFT size'ı 2'nin kuvveti değilse, hata fırlatmak yerine boş liste dönebiliriz.
-      // Bu, uygulamanın çökmesini engeller.
       print("FFT Error: Sample size is not a power of 2. Size: $n");
       return List.filled(n, Complex(0, 0));
     }
@@ -983,7 +786,6 @@ class FFT {
     int n = realData.length;
     if (n == 0) return [];
 
-    // Veri setini 2'nin en yakın kuvvetine pedleme
     int fftSize = 1;
     while (fftSize < n) {
       fftSize <<= 1;
@@ -993,20 +795,14 @@ class FFT {
       fftSize,
       (i) => i < n ? Complex(realData[i], 0.0) : Complex(0.0, 0.0),
     );
-
     List<Complex> result = fft(complexInput, false);
 
     List<FlSpot> fftSpots = [];
-    // Sonucun sadece ilk yarısını alıyoruz (Nyquist teoremi)
     for (int i = 0; i <= fftSize ~/ 2; i++) {
-      // Normalizasyon: Örnek sayısına bölme
       double magnitude = result[i].abs() / n;
-
-      // DC (0 Hz) ve Nyquist frekansı hariç diğerlerini 2 ile çarp
       if (i > 0 && i < fftSize / 2) {
         magnitude *= 2;
       }
-
       double frequency = i * (sampleRate / fftSize);
       fftSpots.add(FlSpot(frequency, magnitude));
     }
