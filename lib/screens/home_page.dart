@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 
+// Bu sabit dışarıdan erişim için hala burada kalabilir.
 const String targetSsid = "ESP32_Sensor_GW_AP";
 
 class HomePage extends StatefulWidget {
@@ -13,18 +14,20 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  bool _isScanning = false;
-  List<WifiNetwork> _wifiList = [];
   String? _currentSsid;
-  bool _isConnecting = false;
+  bool _isCheckingConnection = true;
+  bool _isPreparingForDashboard = false;
 
   @override
   void initState() {
     super.initState();
+    // Sayfa açıldığında mevcut bağlantıyı kontrol et
     _getCurrentSsid();
   }
 
   Future<void> _getCurrentSsid() async {
+    // Kontrol başladığında göstergeyi aktifleştir
+    if (mounted) setState(() => _isCheckingConnection = true);
     String? currentSsid;
     try {
       bool isWifiEnabled = await WiFiForIoTPlugin.isEnabled();
@@ -40,55 +43,22 @@ class _HomePageState extends State<HomePage> {
     if (mounted) {
       setState(() {
         _currentSsid = currentSsid;
+        // Kontrol bittiğinde göstergeyi kapat
+        _isCheckingConnection = false;
       });
     }
   }
 
-  Future<void> _scanForWifi() async {
-    if (_isScanning) return;
-    setState(() => _isScanning = true);
-    try {
-      await WiFiForIoTPlugin.setEnabled(true);
-      final scanResult = await WiFiForIoTPlugin.loadWifiList();
-      if (mounted) setState(() => _wifiList = scanResult);
-    } catch (e) {
-      print("Wi-Fi tarama hatası: $e");
-    } finally {
-      if (mounted) setState(() => _isScanning = false);
-    }
-  }
+  // --- YENİ ---
+  // Wi-Fi seçim sayfasına gitmek için yeni fonksiyon
+  Future<void> _navigateToWifiSelection() async {
+    // WifiSelectionPage'e git ve bir sonuç bekle
+    final result = await Navigator.pushNamed(context, '/wifi_selection');
 
-  Future<void> _connectToWifi(WifiNetwork network) async {
-    if (network.ssid != targetSsid) return;
-    setState(() => _isConnecting = true);
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Dialog(
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: Row(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 20),
-              Text("Bağlanılıyor..."),
-            ],
-          ),
-        ),
-      ),
-    );
-    try {
-      await WiFiForIoTPlugin.connect(
-        targetSsid,
-        password: "vibrationsensor",
-        security: NetworkSecurity.WPA,
-      );
-    } catch (e) {
-      print("Bağlanma hatası: $e");
-    } finally {
-      if (mounted) Navigator.pop(context);
+    // Eğer WifiSelectionPage'den 'true' sonucuyla dönüldüyse
+    // (yani bağlantı başarılı olduysa), mevcut SSID'yi tekrar kontrol et
+    if (result == true && mounted) {
       await _getCurrentSsid();
-      if (mounted) setState(() => _isConnecting = false);
     }
   }
 
@@ -103,10 +73,10 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     bool isConnectedToTarget = _currentSsid == targetSsid;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bağlantı ve Ayarlar'),
-        // Bu sayfaya ürün kodu ekranından gelindiği için geri tuşu olmamalı.
+        title: const Text('Kontrol Paneli'),
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
@@ -119,152 +89,136 @@ class _HomePageState extends State<HomePage> {
             tooltip: 'Ayarlar',
             onPressed: _navigateToSettings,
           ),
-          IconButton(
-            icon: _isScanning
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.0,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.refresh),
-            onPressed: _scanForWifi,
-          ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildStatusPanel(isConnectedToTarget),
-          const Divider(height: 1),
-          Expanded(
-            child: _wifiList.isEmpty && !_isScanning
-                ? const Center(child: Text("Ağları görmek için tarama yapın."))
-                : ListView.builder(
-                    itemCount: _wifiList.length,
-                    itemBuilder: (context, index) {
-                      final network = _wifiList[index];
-                      if (network.ssid == null || network.ssid!.isEmpty)
-                        return const SizedBox.shrink();
-                      IconData signalIcon;
-                      if (network.level! > -50)
-                        signalIcon = Icons.wifi_sharp;
-                      else if (network.level! > -70)
-                        signalIcon = Icons.wifi_2_bar_sharp;
-                      else
-                        signalIcon = Icons.wifi_1_bar_sharp;
-                      return ListTile(
-                        leading: Icon(signalIcon),
-                        title: Text(network.ssid!),
-                        subtitle: Text("Sinyal: ${network.level} dBm"),
-                        trailing: network.ssid == targetSsid
-                            ? ElevatedButton(
-                                onPressed: _isConnecting
-                                    ? null
-                                    : () => _connectToWifi(network),
-                                child: const Text("Bağlan"),
-                              )
-                            : null,
-                      );
-                    },
-                  ),
-          ),
-          _buildNavigateButton(isConnectedToTarget),
-        ],
+      // --- DEĞİŞTİ ---
+      // Body artık çok daha basit
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            _buildStatusPanel(isConnectedToTarget),
+            const Spacer(), // Boşluk ekleyerek butonları aşağı iter
+            _buildConnectButton(),
+            const SizedBox(height: 16),
+            _buildNavigateButton(isConnectedToTarget),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildStatusPanel(bool isConnected) {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
+    return Card(
       color: isConnected
-          ? Colors.green.withOpacity(0.2)
-          : Colors.red.withOpacity(0.2),
-      child: Row(
-        children: [
-          Icon(
-            isConnected ? Icons.check_circle : Icons.error,
-            color: isConnected ? Colors.green[200] : Colors.red[200],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              isConnected
-                  ? "'$targetSsid' ağına bağlısınız."
-                  : "Grafiği görmek için '$targetSsid' ağına bağlanın.",
-              style: TextStyle(
-                color: isConnected ? Colors.green[100] : Colors.red[100],
+          ? Colors.green.withOpacity(0.3)
+          : Colors.orange.withOpacity(0.3),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            if (_isCheckingConnection)
+              const SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(),
+              )
+            else
+              Icon(
+                isConnected ? Icons.check_circle : Icons.wifi_off_rounded,
+                color: isConnected ? Colors.greenAccent : Colors.orangeAccent,
+                size: 32,
+              ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isConnected ? "Cihaza Bağlı" : "Cihaza Bağlı Değil",
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isConnected
+                        ? "Teste başlamak için hazırsınız."
+                        : "Lütfen cihazın Wi-Fi ağına bağlanın.",
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // --- BU FONKSİYON GÜNCELLENDİ ---
+  // --- YENİ BUTON ---
+  Widget _buildConnectButton() {
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.wifi_find_rounded),
+      label: const Text('Cihaz Wi-Fi Ağına Bağlan'),
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size(double.infinity, 50),
+      ),
+      onPressed: _isCheckingConnection ? null : _navigateToWifiSelection,
+    );
+  }
+
   Widget _buildNavigateButton(bool isConnected) {
-    // Önceki sayfadan (ProductCodePage) gönderilen ürün kodunu alıyoruz.
     final productCode = ModalRoute.of(context)!.settings.arguments as String;
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ElevatedButton.icon(
-        icon: _isConnecting
-            ? Container(
-                width: 24,
-                height: 24,
-                padding: const EdgeInsets.all(2.0),
-                child: const CircularProgressIndicator(
-                  color: Colors.black,
-                  strokeWidth: 3,
-                ),
-              )
-            : const Icon(Icons.bar_chart_rounded),
-        label: Text(_isConnecting ? 'Hazırlanıyor...' : 'Grafiği Görüntüle'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isConnected ? Colors.greenAccent : Colors.grey[800],
-          foregroundColor: isConnected ? Colors.black : Colors.white54,
-          minimumSize: const Size(double.infinity, 50),
-          disabledBackgroundColor: Colors.grey[600],
-        ),
-        onPressed: (isConnected && !_isConnecting)
-            ? () async {
-                setState(() => _isConnecting = true);
-                try {
-                  await WiFiForIoTPlugin.connect(
-                    targetSsid,
-                    password: "vibrationsensor",
-                    security: NetworkSecurity.WPA,
-                    withInternet: false,
+    return ElevatedButton.icon(
+      icon: _isPreparingForDashboard
+          ? Container(
+              width: 24,
+              height: 24,
+              padding: const EdgeInsets.all(2.0),
+              child: const CircularProgressIndicator(
+                color: Colors.black,
+                strokeWidth: 3,
+              ),
+            )
+          : const Icon(Icons.bar_chart_rounded),
+      label: Text(
+        _isPreparingForDashboard ? 'Hazırlanıyor...' : 'Grafiği Görüntüle',
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isConnected ? Colors.greenAccent : Colors.grey[800],
+        foregroundColor: isConnected ? Colors.black : Colors.white54,
+        minimumSize: const Size(double.infinity, 50),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      ),
+      onPressed: (isConnected && !_isPreparingForDashboard)
+          ? () async {
+              setState(() => _isPreparingForDashboard = true);
+              try {
+                // Bu adımlar önemli
+                await WiFiForIoTPlugin.forceWifiUsage(true);
+                await Future.delayed(const Duration(milliseconds: 500));
+
+                await Navigator.pushNamed(
+                  context,
+                  '/dashboard',
+                  arguments: productCode,
+                );
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Bağlantı hatası: $e')),
                   );
-                  await WiFiForIoTPlugin.forceWifiUsage(true);
-                  await Future.delayed(const Duration(milliseconds: 500));
-                  // Aldığımız ürün kodunu DashboardPage'e argüman olarak gönderiyoruz.
-                  await Navigator.pushNamed(
-                    context,
-                    '/dashboard',
-                    arguments: productCode,
-                  );
-                } catch (e) {
-                  print("Grafik sayfasına geçiş öncesi bağlantı hatası: $e");
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Bağlantı hatası: $e')),
-                    );
-                  }
-                } finally {
-                  await WiFiForIoTPlugin.forceWifiUsage(false);
-                  await _getCurrentSsid();
-                  if (mounted) {
-                    setState(() => _isConnecting = false);
-                  }
+                }
+              } finally {
+                // Dashboard sayfasından geri dönüldüğünde çalışacak kod
+                await WiFiForIoTPlugin.forceWifiUsage(false);
+                await _getCurrentSsid(); // Bağlantı durumunu yenile
+                if (mounted) {
+                  setState(() => _isPreparingForDashboard = false);
                 }
               }
-            : null,
-      ),
+            }
+          : null,
     );
   }
 }

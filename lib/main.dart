@@ -5,7 +5,8 @@ import 'package:drone_control_v2/screens/dashboard_page.dart';
 import 'package:drone_control_v2/screens/settings_page.dart';
 import 'package:drone_control_v2/services/settings_service.dart';
 import 'package:drone_control_v2/screens/saved_sessions_page.dart';
-import 'package:drone_control_v2/screens/product_code_page.dart'; // YENİ
+import 'package:drone_control_v2/screens/product_code_page.dart';
+import 'package:drone_control_v2/screens/wifi_selection_page.dart'; // YENİ İMPORT
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,17 +28,14 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
-      // Başlangıç rotası artık Ürün Kodu Sayfası
       initialRoute: '/',
-      // Rotaları yeniden düzenliyoruz
       routes: {
         '/': (context) => const ProductCodePage(),
         '/home': (context) => const HomePage(),
+        '/wifi_selection': (context) => const WifiSelectionPage(), // YENİ ROTA
         '/dashboard': (context) {
-          // Dashboard'a geçerken gönderilen argümanı al
           final productCode =
               ModalRoute.of(context)!.settings.arguments as String;
-          // Bu argümanı DroneDashboardPage'e constructor ile ver
           return DroneDashboardPage(productCode: productCode);
         },
         '/settings': (context) => const SettingsPage(),
