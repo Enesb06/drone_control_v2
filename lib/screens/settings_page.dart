@@ -80,7 +80,7 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Verici ${index + 1} Rengini Seçin'),
+        title: Text('Motor ${index + 1} Rengini Seçin'),
         content: SingleChildScrollView(
           child: ColorPicker(
             pickerColor: _currentColors[index],
@@ -150,7 +150,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   4,
                   (index) => _buildColorPickerTile(
                     index: index,
-                    title: 'Verici ${index + 1} Rengi',
+                    title: 'Motor ${index + 1} Rengi',
                   ),
                 ),
                 const SizedBox(height: 32),

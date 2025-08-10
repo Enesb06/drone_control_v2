@@ -377,7 +377,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "V${index + 1}",
+                  "M${index + 1}",
                   style: TextStyle(
                     color: status != MotorStatus.inactive
                         ? Colors.white

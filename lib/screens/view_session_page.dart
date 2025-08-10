@@ -86,7 +86,7 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Kayıtlı Oturum: Verici ${_selectedIndex + 1}'),
+        title: Text('Kayıtlı Oturum: Motor ${_selectedIndex + 1}'),
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
           IconButton(
@@ -99,7 +99,7 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
       body: _selectedData.isEmpty
           ? Center(
               child: Text(
-                "Verici ${_selectedIndex + 1} için kayıtlı veri bulunamadı.",
+                "Motor ${_selectedIndex + 1} için kayıtlı veri bulunamadı.",
               ),
             )
           : Padding(

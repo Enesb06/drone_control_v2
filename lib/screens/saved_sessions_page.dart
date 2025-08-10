@@ -147,7 +147,7 @@ class _SavedSessionsPageState extends State<SavedSessionsPage> {
                       color: Colors.cyanAccent,
                     ),
                     // --- GÜNCELLENEN YER ---
-                    title: Text('Ürün Kodu: ${session.productCode}'),
+                    title: Text('Ürün ID: ${session.productCode}'),
                     subtitle: Text('Tarih: $formattedDate'),
                     trailing: IconButton(
                       icon: const Icon(

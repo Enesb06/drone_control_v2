@@ -86,7 +86,7 @@ class _ProductCodePageState extends State<ProductCodePage> {
               const SizedBox(height: 24),
 
               const Text(
-                'Lütfen ürün kodunu girin veya QR kodu taratın.',
+                'Lütfen ürün ID girin veya QR kodu taratın.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 18, color: Colors.white70),
               ),
@@ -100,7 +100,7 @@ class _ProductCodePageState extends State<ProductCodePage> {
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: InputDecoration(
-                  labelText: 'Ürün Kodu',
+                  labelText: 'Ürün ID',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

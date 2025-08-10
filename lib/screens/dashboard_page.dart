@@ -287,8 +287,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   String _getAppBarTitle() {
     String baseTitle = (_selectedViewIndex < 4)
-        ? 'V${_selectedViewIndex + 1}'
-        : 'Tüm Vericiler';
+        ? 'M${_selectedViewIndex + 1}'
+        : 'Tüm Motorlar';
     return _isFftView ? '$baseTitle (FFT)' : baseTitle;
   }
 
@@ -509,7 +509,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                       width: isSelected ? 2.5 : 2.0,
                     ),
                   ),
-                  child: _buildMotorTab("V${index + 1}", _motorStatus[index]!),
+                  child: _buildMotorTab("M${index + 1}", _motorStatus[index]!),
                 ),
               ),
             );
@@ -570,7 +570,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     final bool isCurrentlySelected =
         _viewSelections.length > _selectedViewIndex &&
         _viewSelections[_selectedViewIndex] &&
-        title == "V${_selectedViewIndex + 1}";
+        title == "M${_selectedViewIndex + 1}";
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
       child: Row(
