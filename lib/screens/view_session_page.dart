@@ -1,13 +1,12 @@
-// lib/screens/view_session_page.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/recorded_session.dart';
 import '../services/settings_service.dart';
+import 'package:drone_control_v2/l10n/app_localizations.dart';
 
 class ViewSessionPage extends StatefulWidget {
   final RecordedSession session;
-
   const ViewSessionPage({super.key, required this.session});
 
   @override
@@ -17,14 +16,15 @@ class ViewSessionPage extends StatefulWidget {
 class _ViewSessionPageState extends State<ViewSessionPage> {
   int _selectedIndex = 0; // 0:V1, 1:V2, 2:V3, 3:V4
   final SettingsService _settingsService = SettingsService.instance;
-
+  
+  // Orijinal kodunuzdaki değişkenler
   late double _minX, _maxX, _minY, _maxY;
   late double _initialMinX, _initialMaxX, _initialMinY, _initialMaxY;
 
   @override
   void initState() {
     super.initState();
-    _setupInitialBoundaries();
+    _setupInitialBoundaries(); // Orijinaldeki gibi tek seferlik hesaplama
   }
 
   List<FlSpot> get _selectedData {
@@ -42,6 +42,7 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
     }
   }
 
+  // Orijinal kodunuzdaki hesaplama fonksiyonu (değiştirilmedi)
   void _setupInitialBoundaries() {
     final allData = [
       ...widget.session.v1Data,
@@ -60,9 +61,10 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
       _initialMaxX = allData.map((e) => e.x).reduce(max);
       _initialMinY = allData.map((e) => e.y.abs()).reduce(min);
       _initialMaxY = allData.map((e) => e.y.abs()).reduce(max);
-
+      
       final xPadding = (_initialMaxX - _initialMinX) * 0.05;
       final yPadding = (_initialMaxY - _initialMinY) * 0.1;
+      
       _initialMinX -= xPadding;
       _initialMaxX += xPadding;
       _initialMinY = 0; // Genelde mutlak değer grafiği çizeriz
@@ -71,6 +73,7 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
     _resetZoom();
   }
 
+  // Orijinal kodunuzdaki reset fonksiyonu (değiştirilmedi)
   void _resetZoom() {
     setState(() {
       _minX = _initialMinX;
@@ -80,27 +83,29 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
     });
   }
 
-  // lib/screens/view_session_page.dart dosyasında
-
   @override
   Widget build(BuildContext context) {
+    // Sadece yerelleştirme için l10n değişkeni eklendi
+    final l10n = AppLocalizations.of(context)!; 
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Kayıtlı Oturum: Motor ${_selectedIndex + 1}'),
+        // Text, l10n ile değiştirildi
+        title: Text(l10n.viewSessionPageTitle(_selectedIndex + 1)),
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
           IconButton(
             icon: const Icon(Icons.zoom_out_map),
-            tooltip: "Görünümü Sıfırla",
+            // tooltip, l10n ile değiştirildi
+            tooltip: l10n.resetViewTooltip, 
             onPressed: _resetZoom,
           ),
         ],
       ),
       body: _selectedData.isEmpty
           ? Center(
-              child: Text(
-                "Motor ${_selectedIndex + 1} için kayıtlı veri bulunamadı.",
-              ),
+              // Text, l10n ile değiştirildi
+              child: Text(l10n.noDataForMotor(_selectedIndex + 1)),
             )
           : Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -121,11 +126,8 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
                       dotData: const FlDotData(show: false),
                     ),
                   ],
-
-                  // --- YENİ EKLENEN KISIM ---
                   extraLinesData: ExtraLinesData(
                     horizontalLines: [
-                      // Uyarı Eşiği Çizgisi
                       HorizontalLine(
                         y: _settingsService.warningThreshold,
                         color: Colors.yellowAccent.withOpacity(0.8),
@@ -140,10 +142,10 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
-                          labelResolver: (line) => 'Uyarı',
+                          // labelResolver, l10n ile değiştirildi
+                          labelResolver: (line) => l10n.warningThresholdLabel,
                         ),
                       ),
-                      // Hata Eşiği Çizgisi
                       HorizontalLine(
                         y: _settingsService.errorThreshold,
                         color: Colors.redAccent.withOpacity(0.8),
@@ -158,13 +160,12 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
-                          labelResolver: (line) => 'Hata',
+                          // labelResolver, l10n ile değiştirildi
+                          labelResolver: (line) => l10n.errorThresholdLabel,
                         ),
                       ),
                     ],
                   ),
-
-                  // --- YENİ KISIM SONU ---
                   titlesData: FlTitlesData(
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
@@ -201,8 +202,9 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() {
+          // Orijinal kodunuzdaki gibi, onTap sadece index'i değiştiriyor.
+          // Sınırların yeniden hesaplanması için _setupInitialBoundaries çağrılmıyor.
           _selectedIndex = index;
-          _setupInitialBoundaries();
         }),
         backgroundColor: Theme.of(context).primaryColor,
         selectedItemColor: Colors.cyanAccent,

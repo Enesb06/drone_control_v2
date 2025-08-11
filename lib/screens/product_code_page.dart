@@ -1,6 +1,6 @@
-// lib/screens/product_code_page.dart
 import 'package:flutter/material.dart';
 import 'qr_scanner_page.dart';
+import 'package:drone_control_v2/l10n/app_localizations.dart';
 
 class ProductCodePage extends StatefulWidget {
   const ProductCodePage({super.key});
@@ -37,7 +37,6 @@ class _ProductCodePageState extends State<ProductCodePage> {
       context,
       MaterialPageRoute(builder: (context) => const QRScannerPage()),
     );
-
     if (result != null && result.isNotEmpty && mounted) {
       _controller.text = result;
     }
@@ -54,9 +53,11 @@ class _ProductCodePageState extends State<ProductCodePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ürün Kodu Girişi'),
+        title: Text(l10n.productCodePageTitle),
         backgroundColor: Theme.of(context).primaryColor,
       ),
       body: Center(
@@ -66,29 +67,26 @@ class _ProductCodePageState extends State<ProductCodePage> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // --- YAZI EN ÜSTE TAŞINDI ---
-              const Text(
-                'Drone Test Uygulamasına Hoşgeldiniz',
+              Text(
+                l10n.welcomeMessage,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 24, // Boyutu biraz daha büyüttüm
+                style: const TextStyle(
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 40), // Başlık sonrası boşluğu artırdım
-
+              const SizedBox(height: 40),
               Icon(
                 Icons.qr_code_scanner_rounded,
                 size: 80,
                 color: Colors.cyanAccent.withOpacity(0.8),
               ),
               const SizedBox(height: 24),
-
-              const Text(
-                'Lütfen ürün ID girin veya QR kodu taratın.',
+              Text(
+                l10n.productCodePrompt,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, color: Colors.white70),
+                style: const TextStyle(fontSize: 18, color: Colors.white70),
               ),
               const SizedBox(height: 24),
               TextField(
@@ -100,7 +98,7 @@ class _ProductCodePageState extends State<ProductCodePage> {
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: InputDecoration(
-                  labelText: 'Ürün ID',
+                  labelText: l10n.productIDFieldLabel,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -108,7 +106,7 @@ class _ProductCodePageState extends State<ProductCodePage> {
                   fillColor: Colors.white10,
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.qr_code_scanner),
-                    tooltip: 'QR Kodu Tara',
+                    tooltip: l10n.scanQRCodeTooltip,
                     onPressed: _openQRScanner,
                     color: Colors.cyanAccent,
                   ),
@@ -117,19 +115,17 @@ class _ProductCodePageState extends State<ProductCodePage> {
               const SizedBox(height: 32),
               ElevatedButton.icon(
                 icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('Teste Başla'),
+                label: Text(l10n.startTestButton),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   textStyle: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
-                  backgroundColor: _isButtonEnabled
-                      ? Colors.greenAccent
-                      : Colors.grey[800],
-                  foregroundColor: _isButtonEnabled
-                      ? Colors.black
-                      : Colors.white54,
+                  backgroundColor:
+                      _isButtonEnabled ? Colors.greenAccent : Colors.grey[800],
+                  foregroundColor:
+                      _isButtonEnabled ? Colors.black : Colors.white54,
                 ),
                 onPressed: _isButtonEnabled ? _startTest : null,
               ),

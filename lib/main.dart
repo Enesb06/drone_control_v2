@@ -1,5 +1,5 @@
-// main.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:drone_control_v2/screens/home_page.dart';
 import 'package:drone_control_v2/screens/dashboard_page.dart';
 import 'package:drone_control_v2/screens/settings_page.dart';
@@ -7,11 +7,25 @@ import 'package:drone_control_v2/services/settings_service.dart';
 import 'package:drone_control_v2/screens/saved_sessions_page.dart';
 import 'package:drone_control_v2/screens/product_code_page.dart';
 import 'package:drone_control_v2/screens/wifi_selection_page.dart';
+import 'package:drone_control_v2/providers/locale_provider.dart';
+import 'package:drone_control_v2/l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SettingsService.instance.initialize();
-  runApp(const MyApp());
+  runApp(const MyAppWrapper());
+}
+
+class MyAppWrapper extends StatelessWidget {
+  const MyAppWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (context) => LocaleProvider(),
+      child: const MyApp(),
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -19,8 +33,14 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localeProvider = Provider.of<LocaleProvider>(context);
+
     return MaterialApp(
-      title: 'Drone Titreşim Monitörü',
+      onGenerateTitle: (context) =>
+          AppLocalizations.of(context)!.welcomeMessage,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: localeProvider.locale,
       theme: ThemeData(
         brightness: Brightness.dark,
         primaryColor: const Color(0xFF161625),
@@ -34,7 +54,6 @@ class MyApp extends StatelessWidget {
         '/home': (context) => const HomePage(),
         '/wifi_selection': (context) => const WifiSelectionPage(),
         '/dashboard': (context) {
-          // YENİ: Argüman tipi değişti
           final args =
               ModalRoute.of(context)!.settings.arguments as DashboardArguments;
           return DroneDashboardPage(args: args);

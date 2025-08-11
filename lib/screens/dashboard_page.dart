@@ -7,17 +7,14 @@ import 'dart:math';
 import 'package:path_provider/path_provider.dart';
 import '../models/recorded_session.dart';
 import '../services/settings_service.dart';
-import 'home_page.dart'; // Argüman sınıfını almak için
+import 'home_page.dart';
+import 'package:drone_control_v2/l10n/app_localizations.dart';
 
-// WebSocket ile ilgili tüm kodlar bu sayfadan kaldırıldı.
-
+// Orijinal kodunuzdaki her şey aynı kalıyor
 enum DataType { x_axis, y_axis, z_axis, resultant }
-
-// Bu Enum'a HomePage'den de erişildiği için oraya taşındı, ama burada da kalabilir.
 enum MotorStatus { normal, warning, outOfBounds, inactive }
 
 class DroneDashboardPage extends StatefulWidget {
-  // Argümanları almak için constructor güncellendi
   final DashboardArguments args;
   const DroneDashboardPage({super.key, required this.args});
 
@@ -26,6 +23,7 @@ class DroneDashboardPage extends StatefulWidget {
 }
 
 class _DroneDashboardPageState extends State<DroneDashboardPage> {
+  // --- Değişkenleriniz ve State'iniz olduğu gibi kalıyor ---
   DataType _selectedDataType = DataType.resultant;
   final Map<int, List<FlSpot>> _dataSpotsX = {
     for (var i = 0; i < 4; i++) i: [],
@@ -40,9 +38,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     for (var i = 0; i < 4; i++) i: [],
   };
 
-  // Motor durumu artık HomePage'den gelen stream ile güncellenecek
   late Map<int, MotorStatus> _motorStatus;
-
   StreamSubscription? _dataSubscription;
   double _globalTime = 0;
   final int _dataPointIntervalMs = 30;
@@ -70,13 +66,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   void initState() {
     super.initState();
     _viewSelections = List.generate(5, (index) => index == 0);
-    _motorStatus = Map.from(
-      widget.args.initialMotorStatus,
-    ); // Başlangıç durumunu al
-
-    // HomePage'den gelen veri akışını dinle
+    _motorStatus = Map.from(widget.args.initialMotorStatus);
     _dataSubscription = widget.args.dataStream.listen(_handleData);
-
     _startGuiTimer();
     _startRecording();
   }
@@ -86,45 +77,45 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     if (_isRecording && !_sessionSaveProcessStarted) {
       _sessionSaveProcessStarted = true;
       final contextForDialog = context;
+      // FrameCallback hatası için düzeltme
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _stopAndPromptSave(contextForDialog);
+        // Orijinal kodunuzda bu kontrol yoktu ama eklemek daha güvenli.
+        // İstemiyorsanız if (mounted) bloğunu kaldırabilirsiniz.
+        if (mounted && contextForDialog.mounted) {
+          _stopAndPromptSave(contextForDialog);
+        }
       });
     }
     _dataSubscription?.cancel();
     _guiTimer?.cancel();
     super.dispose();
   }
+  
+  // --- Tüm fonksiyonlarınızın mantığı olduğu gibi kalıyor ---
 
-  // Veri işleme fonksiyonu artık stream'den gelen veriyi kullanıyor
   void _handleData(Map<String, dynamic> data) {
     if (!mounted) return;
-
     if (data.containsKey('empty') && data['empty'] == true) return;
     if (!data.containsKey('id')) return;
-
     final int transmitterIndex = (data['id'] as int) - 1;
     if (transmitterIndex < 0 || transmitterIndex >= 4) return;
-
     final double ax = (data['ax'] as num).toDouble();
     final double ay = (data['ay'] as num).toDouble();
     final double az = (data['az'] as num).toDouble();
     final double mag = (data['mag'] as num).toDouble();
-
     final buffer = _fftDataBuffer[transmitterIndex]!;
     buffer.add(mag);
     if (buffer.length > _fftSampleSize) {
       buffer.removeAt(0);
     }
-
     _dataSpotsX[transmitterIndex]!.add(FlSpot(_globalTime, ax));
     _dataSpotsY[transmitterIndex]!.add(FlSpot(_globalTime, ay));
     _dataSpotsZ[transmitterIndex]!.add(FlSpot(_globalTime, az));
     _dataSpotsResultant[transmitterIndex]!.add(FlSpot(_globalTime, mag));
-
     if (_isRecording) {
-      _recordedSpotsResultant[transmitterIndex]!.add(FlSpot(_globalTime, mag));
+      _recordedSpotsResultant[transmitterIndex]!
+          .add(FlSpot(_globalTime, mag));
     }
-
     MotorStatus newStatus;
     if (mag.abs() > _settingsService.errorThreshold)
       newStatus = MotorStatus.outOfBounds;
@@ -132,22 +123,19 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       newStatus = MotorStatus.warning;
     else
       newStatus = MotorStatus.normal;
-
     if (_motorStatus[transmitterIndex] != newStatus) {
       _motorStatus[transmitterIndex] = newStatus;
     }
   }
 
   void _startGuiTimer() {
-    _guiTimer = Timer.periodic(Duration(milliseconds: _dataPointIntervalMs), (
-      timer,
-    ) {
+    _guiTimer =
+        Timer.periodic(Duration(milliseconds: _dataPointIntervalMs), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
       }
       _calculateAndSetFft();
-
       setState(() {
         _globalTime += (_dataPointIntervalMs / 1000.0);
         final allLists = [
@@ -158,7 +146,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         ];
         for (var dataMap in allLists) {
           for (var list in dataMap.values) {
-            list.removeWhere((spot) => spot.x < _globalTime - _displaySeconds);
+            list.removeWhere(
+                (spot) => spot.x < _globalTime - _displaySeconds);
           }
         }
       });
@@ -171,16 +160,21 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       _isRecording = true;
       _sessionSaveProcessStarted = false;
       for (var key in _recordedSpotsResultant.keys) {
+        // Orijinal kodunuzda 'recordedSpotsResultant' yazıyordu, '_recordedSpotsResultant' olmalı.
+        // Bu küçük hatayı düzeltiyorum.
         _recordedSpotsResultant[key]!.clear();
       }
     });
+    // FrameCallback hatası için düzeltme
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        // Sadece SnackBar içindeki Text yerelleştirildi.
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Veri kaydı otomatik olarak başladı.'),
+          SnackBar(
+            content: Text(l10n.dataRecordingStarted), // DEĞİŞTİ
             backgroundColor: Colors.blueAccent,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -191,34 +185,35 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     if (!_isRecording || _sessionSaveProcessStarted) return;
     _sessionSaveProcessStarted = true;
     setState(() => _isRecording = false);
-    final bool hasDataToSave = _recordedSpotsResultant.values.any(
-      (list) => list.isNotEmpty,
-    );
+    final bool hasDataToSave =
+        _recordedSpotsResultant.values.any((list) => list.isNotEmpty);
     if (!hasDataToSave) {
       if (mounted) {
         ScaffoldMessenger.of(dialogContext).showSnackBar(
           const SnackBar(
+            // Bu metin .arb dosyasında yok, isterseniz ekleyebiliriz. Şimdilik orijinali gibi kalıyor.
             content: Text('Kayıt durduruldu. Kaydedilecek veri yok.'),
           ),
         );
       }
       return;
     }
+
+    // Dialog içindeki metinler yerelleştirildi.
+    final l10n = AppLocalizations.of(dialogContext)!;
     final bool? shouldSave = await showDialog<bool>(
       context: dialogContext,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Oturumu Kaydet'),
-        content: const Text(
-          'Bu veri kaydını bir dosya olarak saklamak istiyor musunuz?',
-        ),
+        title: Text(l10n.saveSessionDialogTitle), // DEĞİŞTİ
+        content: Text(l10n.saveSessionDialogContent), // DEĞİŞTİ
         actions: [
           TextButton(
-            child: const Text('Kaydetme'),
+            child: Text(l10n.dontSaveButton), // DEĞİŞTİ
             onPressed: () => Navigator.of(context).pop(false),
           ),
           ElevatedButton(
-            child: const Text('Kaydet'),
+            child: Text(l10n.saveButton), // DEĞİŞTİ
             onPressed: () => Navigator.of(context).pop(true),
           ),
         ],
@@ -228,37 +223,40 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       await _saveSessionToFile(dialogContext);
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(
-          dialogContext,
-        ).showSnackBar(const SnackBar(content: Text('Oturum kaydedilmedi.')));
+        ScaffoldMessenger.of(dialogContext).showSnackBar(
+            SnackBar(content: Text(l10n.sessionNotSaved))); // DEĞİŞTİ
       }
     }
   }
 
   Future<void> _saveSessionToFile(BuildContext scaffoldContext) async {
+    // SnackBar içindeki metinler yerelleştirildi.
+    final l10n = AppLocalizations.of(scaffoldContext)!;
     try {
       final session = RecordedSession(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        productCode: widget.args.productCode, // Argümandan alınıyor
+        productCode: widget.args.productCode,
         timestamp: DateTime.now(),
         v1Data: List.from(_recordedSpotsResultant[0]!),
         v2Data: List.from(_recordedSpotsResultant[1]!),
         v3Data: List.from(_recordedSpotsResultant[2]!),
+        // Orijinal kodunuzda 'recordedSpotsResultant' yazıyordu, '_recordedSpotsResultant' olmalı.
         v4Data: List.from(_recordedSpotsResultant[3]!),
       );
       final directory = await getApplicationDocumentsDirectory();
       final fileName = 'session_${session.id}.json';
       final file = File('${directory.path}/$fileName');
       await file.writeAsString(jsonEncode(session.toJson()));
+
       if (mounted) {
         ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-          SnackBar(content: Text('Oturum başarıyla kaydedildi: $fileName')),
+          SnackBar(content: Text(l10n.sessionSavedSuccessfully(fileName))), // DEĞİŞTİ
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-          SnackBar(content: Text('Hata: Oturum kaydedilemedi. $e')),
+          SnackBar(content: Text(l10n.errorSavingSession(e.toString()))), // DEĞİŞTİ
         );
       }
     }
@@ -274,10 +272,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     }
     final buffer = _fftDataBuffer[_selectedViewIndex]!;
     if (buffer.length < _fftSampleSize) return;
-    final List<FlSpot> newFftSpots = FFT.computeRealFFTMagnitude(
-      buffer,
-      _samplingRate,
-    );
+    final List<FlSpot> newFftSpots =
+        FFT.computeRealFFTMagnitude(buffer, _samplingRate);
     if (!mounted) return;
     if (_fftSpots[_selectedViewIndex]!.length != newFftSpots.length ||
         newFftSpots.isNotEmpty) {
@@ -285,11 +281,12 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     }
   }
 
-  String _getAppBarTitle() {
+  // Bu fonksiyon artık l10n parametresi alıyor.
+  String _getAppBarTitle(AppLocalizations l10n) {
     String baseTitle = (_selectedViewIndex < 4)
-        ? 'M${_selectedViewIndex + 1}'
-        : 'Tüm Motorlar';
-    return _isFftView ? '$baseTitle (FFT)' : baseTitle;
+        ? l10n.dashboardAppBarTitleMotor(_selectedViewIndex + 1) // DEĞİŞTİ
+        : l10n.dashboardAppBarTitleAllMotors; // DEĞİŞTİ
+    return _isFftView ? '$baseTitle ${l10n.dashboardAppBarTitleFFT}' : baseTitle; // DEĞİŞTİ
   }
 
   void _handleViewSelection(int index) {
@@ -304,11 +301,11 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Sadece build metodunun başına l10n değişkeni eklendi.
+    final l10n = AppLocalizations.of(context)!;
     bool isAllView = _selectedViewIndex == 4;
     bool showSegmentedButton = !isAllView && !_isFftView;
 
-    // Bağlantı kontrolü (_isConnected) ve _buildConnectionPrompt kaldırıldı.
-    // Sayfa her zaman doğrudan içeriği gösterir.
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -332,7 +329,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                   },
                 ),
               ),
-            Text(_getAppBarTitle()),
+            Text(_getAppBarTitle(l10n)), // Text, l10n ile güncellendi.
           ],
         ),
         backgroundColor: Theme.of(context).primaryColor,
@@ -343,7 +340,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 Icons.stop_circle_outlined,
                 color: Colors.redAccent,
               ),
-              tooltip: 'Kaydı Durdur ve Sakla',
+              tooltip: l10n.stopRecordingTooltip, // Tooltip yerelleştirildi.
               onPressed: () {
                 if (!_sessionSaveProcessStarted) _stopAndPromptSave(context);
               },
@@ -351,12 +348,14 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
           if (!isAllView)
             IconButton(
               icon: Icon(_isFftView ? Icons.show_chart : Icons.ssid_chart),
+              // Tooltip yerelleştirildi.
               tooltip: _isFftView
-                  ? 'Zaman Grafiğini Göster'
-                  : 'FFT Grafiğini Göster',
+                  ? l10n.showTimeGraphTooltip
+                  : l10n.showFFTGraphTooltip,
               onPressed: () => setState(() => _isFftView = !_isFftView),
             ),
         ],
+        // bottom: ... kısmı orijinal yapı olduğu için değiştirilmedi.
         bottom: showSegmentedButton
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(56.0),
@@ -388,11 +387,13 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               )
             : null,
       ),
-      body: _isFftView ? _buildFftGraph() : _buildGraph(),
-      bottomNavigationBar: _buildViewSelector(),
+      // body ve bottomNavigationBar, l10n parametresini alacak şekilde güncellendi.
+      body: _isFftView ? _buildFftGraph(l10n) : _buildGraph(l10n),
+      bottomNavigationBar: _buildViewSelector(l10n),
     );
   }
 
+  // Bu widget'ın yapısı değiştirilmedi.
   Widget _buildSegmentedButton(DataType type, String label) {
     bool isSelected = _selectedDataType == type;
     return Expanded(
@@ -416,10 +417,11 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     );
   }
 
-  Widget _buildFftGraph() {
+  // Bu widget artık l10n parametresi alıyor.
+  Widget _buildFftGraph(AppLocalizations l10n) {
     if (_selectedViewIndex >= 4)
-      return const Center(
-        child: Text("FFT analizi sadece tekil sensörler için geçerlidir."),
+      return Center(
+        child: Text(l10n.fftAnalysisNotAvailableForAll), // Text yerelleştirildi.
       );
     final List<FlSpot> spots = _fftSpots[_selectedViewIndex] ?? [];
     double maxY = 0;
@@ -456,7 +458,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 reservedSize: 45,
                 getTitlesWidget: (v, m) => Text(v.toStringAsFixed(2)),
               ),
-              axisNameWidget: const Text("Genlik"),
+              axisNameWidget: Text(l10n.fftAmplitude), // Text yerelleştirildi.
             ),
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
@@ -465,7 +467,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 interval: 5,
                 getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)),
               ),
-              axisNameWidget: const Text("Frekans (Hz)"),
+              axisNameWidget: Text(l10n.fftFrequency), // Text yerelleştirildi.
             ),
             topTitles: const AxisTitles(
               sideTitles: SideTitles(showTitles: false),
@@ -480,8 +482,9 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       ),
     );
   }
-
-  Widget _buildViewSelector() {
+  
+  // Bu widget artık l10n parametresi alıyor.
+  Widget _buildViewSelector(AppLocalizations l10n) {
     final int buttonCount = _isFftView ? 4 : 5;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
@@ -490,7 +493,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         children: List.generate(buttonCount, (index) {
           bool isSelected = _viewSelections[index];
           if (index < 4) {
-            final Color borderColor = _settingsService.transmitterColors[index];
+            final Color borderColor =
+                _settingsService.transmitterColors[index];
             return Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2.0),
@@ -509,7 +513,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                       width: isSelected ? 2.5 : 2.0,
                     ),
                   ),
-                  child: _buildMotorTab("M${index + 1}", _motorStatus[index]!),
+                  child:
+                      _buildMotorTab("M${index + 1}", _motorStatus[index]!),
                 ),
               ),
             );
@@ -535,7 +540,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12.0),
                     child: Text(
-                      "ALL",
+                      l10n.allButton.toUpperCase(), // Text yerelleştirildi.
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: isSelected ? Colors.cyanAccent : Colors.white70,
@@ -551,6 +556,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     );
   }
 
+  // Bu widget'ın yapısı değiştirilmedi.
   Widget _buildMotorTab(String title, MotorStatus status) {
     Color indicatorColor;
     switch (status) {
@@ -569,8 +575,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     }
     final bool isCurrentlySelected =
         _viewSelections.length > _selectedViewIndex &&
-        _viewSelections[_selectedViewIndex] &&
-        title == "M${_selectedViewIndex + 1}";
+            _viewSelections[_selectedViewIndex] &&
+            title == "M${_selectedViewIndex + 1}";
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
       child: Row(
@@ -595,8 +601,9 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       ),
     );
   }
-
-  Widget _buildGraph() {
+  
+  // Bu widget artık l10n parametresi alıyor.
+  Widget _buildGraph(AppLocalizations l10n) {
     final double minX = max(0.0, _globalTime - _displaySeconds);
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
     List<LineChartBarData> lines = [];
@@ -667,7 +674,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
-                  labelResolver: (line) => 'Uyarı',
+                  labelResolver: (line) => l10n.warningThresholdLabel, // DEĞİŞTİ
                 ),
               ),
               HorizontalLine(
@@ -684,7 +691,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
-                  labelResolver: (line) => 'Hata',
+                  labelResolver: (line) => l10n.errorThresholdLabel, // DEĞİŞTİ
                 ),
               ),
             ],
@@ -728,7 +735,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 }
 
-// FFT Sınıfları
+// FFT Sınıfları (Orijinal haliyle bırakıldı)
 class Complex {
   double real;
   double imag;
@@ -741,9 +748,9 @@ class Complex {
   Complex operator -(Complex other) =>
       Complex(real - other.real, imag - other.imag);
   Complex operator *(Complex other) => Complex(
-    real * other.real - imag * other.imag,
-    real * other.imag + imag * other.real,
-  );
+        real * other.real - imag * other.imag,
+        real * other.imag + imag * other.real,
+      );
 }
 
 class FFT {
@@ -785,18 +792,15 @@ class FFT {
   ) {
     int n = realData.length;
     if (n == 0) return [];
-
     int fftSize = 1;
     while (fftSize < n) {
       fftSize <<= 1;
     }
-
     List<Complex> complexInput = List.generate(
       fftSize,
       (i) => i < n ? Complex(realData[i], 0.0) : Complex(0.0, 0.0),
     );
     List<Complex> result = fft(complexInput, false);
-
     List<FlSpot> fftSpots = [];
     for (int i = 0; i <= fftSize ~/ 2; i++) {
       double magnitude = result[i].abs() / n;

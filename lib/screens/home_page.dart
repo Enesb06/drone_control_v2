@@ -1,18 +1,15 @@
-// lib/screens/home_page.dart
-
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../services/settings_service.dart';
-import '../screens/dashboard_page.dart'; // Dashboard'un Enum'larını kullanmak için
+import 'dashboard_page.dart';
+import 'package:drone_control_v2/l10n/app_localizations.dart';
 
 const String targetSsid = "ESP32_Sensor_GW_AP";
 final esp32WebSocketUrl = Uri.parse('ws://192.168.4.1:81');
 
-// Dashboard'a argüman olarak geçilecek veri paketi
 class DashboardArguments {
   final String productCode;
   final Stream<Map<String, dynamic>> dataStream;
@@ -37,12 +34,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _isCheckingConnection = true;
   final SettingsService _settingsService = SettingsService.instance;
 
-  // --- MERKEZİ STATE YÖNETİMİ ---
   WebSocketChannel? _channel;
   StreamSubscription? _socketSubscription;
   bool _isWsConnected = false;
 
-  // Dashboard'a gönderilecek olan StreamController
   final StreamController<Map<String, dynamic>> _dataStreamController =
       StreamController.broadcast();
 
@@ -52,7 +47,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Map<int, DateTime> _lastDataTime = {};
   final Duration _inactiveTimeout = const Duration(seconds: 2);
   Timer? _statusCheckTimer;
-  // --- MERKEZİ STATE SONU ---
 
   @override
   void initState() {
@@ -107,13 +101,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   void _connectToWebSocket() {
     if (_isWsConnected || !mounted) return;
-
     try {
       _isWsConnected = true;
       _channel = WebSocketChannel.connect(esp32WebSocketUrl);
-
-      if (mounted) setState(() {}); // Buton durumunu güncellemek için
-
+      if (mounted) setState(() {});
       _socketSubscription = _channel!.stream.listen(
         _handleWebSocketData,
         onDone: _handleDisconnection,
@@ -130,13 +121,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!mounted) return;
     try {
       final data = jsonDecode(message);
-      _dataStreamController.add(data); // Veriyi Dashboard'a yolla
-
+      _dataStreamController.add(data);
       if (data.containsKey('id')) {
         final int transmitterIndex = (data['id'] as int) - 1;
         if (transmitterIndex >= 0 && transmitterIndex < 4) {
           _lastDataTime[transmitterIndex] = DateTime.now();
-
           final double mag = (data['mag'] as num).toDouble();
           MotorStatus newStatus;
           if (mag.abs() > _settingsService.errorThreshold) {
@@ -146,7 +135,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           } else {
             newStatus = MotorStatus.normal;
           }
-
           if (_motorStatus[transmitterIndex] != newStatus) {
             setState(() => _motorStatus[transmitterIndex] = newStatus);
           }
@@ -200,8 +188,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  // --- UI KODLARI ---
-
   Future<void> _navigateToWifiSelection() async {
     await Navigator.pushNamed(context, '/wifi_selection');
     _checkWifiAndConnect();
@@ -215,29 +201,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       arguments: DashboardArguments(
         productCode: productCode,
         dataStream: _dataStreamController.stream,
-        initialMotorStatus: Map.from(
-          _motorStatus,
-        ), // Mevcut durumun bir kopyasını gönder
+        initialMotorStatus: Map.from(_motorStatus),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     bool isConnected = _currentSsid == targetSsid && _isWsConnected;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kontrol Paneli'),
+        title: Text(l10n.homePageTitle),
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.history_rounded),
-            tooltip: 'Kayıtlı Oturumlar',
+            tooltip: l10n.savedSessionsTooltip,
             onPressed: () => Navigator.pushNamed(context, '/saved_sessions'),
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Ayarlar',
+            tooltip: l10n.settingsTooltip,
             onPressed: () => Navigator.pushNamed(context, '/settings'),
           ),
         ],
@@ -246,21 +232,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            _buildStatusPanel(),
+            _buildStatusPanel(l10n),
             if (_currentSsid == targetSsid) ...[
               const SizedBox(height: 16),
               _buildTransmitterStatusPanel(),
             ],
             const Spacer(),
-            _buildConnectButton(),
+            _buildConnectButton(l10n),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               icon: const Icon(Icons.bar_chart_rounded),
-              label: const Text('Grafiği Görüntüle'),
+              label: Text(l10n.viewGraphButton),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isConnected
-                    ? Colors.greenAccent
-                    : Colors.grey[800],
+                backgroundColor:
+                    isConnected ? Colors.greenAccent : Colors.grey[800],
                 foregroundColor: isConnected ? Colors.black : Colors.white54,
                 minimumSize: const Size(double.infinity, 50),
                 textStyle: const TextStyle(
@@ -276,27 +261,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildStatusPanel() {
+  Widget _buildStatusPanel(AppLocalizations l10n) {
     String title, subtitle;
     Color cardColor;
     IconData icon;
     Color iconColor;
 
     if (_isCheckingConnection) {
-      title = "Kontrol Ediliyor...";
-      subtitle = "Lütfen bekleyin.";
+      title = l10n.statusChecking;
+      subtitle = l10n.statusPleaseWait;
       cardColor = Colors.blue.withOpacity(0.3);
       icon = Icons.sync;
       iconColor = Colors.blueAccent;
     } else if (_currentSsid == targetSsid) {
-      title = "Cihaza Bağlı";
-      subtitle = _isWsConnected ? "Veri akışı aktif." : "Veri bekleniyor...";
+      title = l10n.statusConnectedToDevice;
+      subtitle =
+          _isWsConnected ? l10n.statusDataStreamActive : l10n.statusWaitingForData;
       cardColor = Colors.green.withOpacity(0.3);
       icon = Icons.check_circle;
       iconColor = Colors.greenAccent;
     } else {
-      title = "Cihaza Bağlı Değil";
-      subtitle = "Lütfen cihazın Wi-Fi ağına bağlanın.";
+      title = l10n.statusNotConnectedToDevice;
+      subtitle = l10n.statusConnectToWifiPrompt;
       cardColor = Colors.orange.withOpacity(0.3);
       icon = Icons.wifi_off_rounded;
       iconColor = Colors.orangeAccent;
@@ -393,10 +379,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildConnectButton() {
+  Widget _buildConnectButton(AppLocalizations l10n) {
     return ElevatedButton.icon(
       icon: const Icon(Icons.wifi_find_rounded),
-      label: const Text('Cihaz Wi-Fi Ağına Bağlan'),
+      label: Text(l10n.connectToDeviceWifiButton),
       style: ElevatedButton.styleFrom(
         minimumSize: const Size(double.infinity, 50),
       ),

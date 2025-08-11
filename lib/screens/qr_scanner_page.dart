@@ -1,6 +1,6 @@
-// lib/screens/qr_scanner_page.dart
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:drone_control_v2/l10n/app_localizations.dart';
 
 class QRScannerPage extends StatefulWidget {
   const QRScannerPage({super.key});
@@ -27,16 +27,16 @@ class _QRScannerPageState extends State<QRScannerPage> {
       setState(() {
         _isScanCompleted = true;
       });
-      // Kodu bir önceki sayfaya sonuç olarak gönder ve bu sayfayı kapat
       Navigator.pop(context, code);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('QR Kodu Tara'),
+        title: Text(l10n.qrScannerPageTitle),
         backgroundColor: Colors.black.withOpacity(0.7),
         elevation: 0,
       ),
@@ -44,7 +44,6 @@ class _QRScannerPageState extends State<QRScannerPage> {
         alignment: Alignment.center,
         children: [
           MobileScanner(controller: controller, onDetect: _onDetect),
-          // Tarama alanını görselleştirmek için bir çerçeve
           Container(
             width: 250,
             height: 250,
