@@ -544,6 +544,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Scan and Start'**
   String get proceedToScanButton;
+
+  /// No description provided for @motorStatusTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Motor Statuses'**
+  String get motorStatusTitle;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -74,5 +74,6 @@
     "selectMotorColorTitle": "Motor {motorNumber} Rengini Seçin",
     "okButton": "Tamam",
     "changeButton": "Değiştir",
-    "proceedToScanButton": "Ürünü Tara ve Başlat"
+    "proceedToScanButton": "Ürünü Tara ve Başlat",
+    "motorStatusTitle": "Motor Durumları"
 }

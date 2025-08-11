@@ -256,4 +256,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get proceedToScanButton => 'Ürünü Tara ve Başlat';
+
+  @override
+  String get motorStatusTitle => 'Motor Durumları';
 }

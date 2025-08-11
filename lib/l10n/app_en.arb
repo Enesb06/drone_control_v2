@@ -74,5 +74,6 @@
     "selectMotorColorTitle": "Select Motor {motorNumber} Color",
     "okButton": "OK",
     "changeButton": "Change",
-    "proceedToScanButton": "Scan and Start"
+    "proceedToScanButton": "Scan and Start",
+    "motorStatusTitle": "Motor Statuses"
 }

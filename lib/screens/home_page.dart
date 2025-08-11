@@ -2,7 +2,6 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -44,7 +43,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final StreamController<Map<String, dynamic>> _dataStreamController =
       StreamController.broadcast();
 
-  // DEĞİŞTİ: Motor sayısı 4'ten 6'ya çıkarıldı.
   static const int motorCount = 6;
 
   final Map<int, MotorStatus> _motorStatus = {
@@ -130,7 +128,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _dataStreamController.add(data);
       if (data.containsKey('id')) {
         final int transmitterIndex = (data['id'] as int) - 1;
-        // DEĞİŞTİ: Index kontrolü 6 motor için yapıldı.
         if (transmitterIndex >= 0 && transmitterIndex < motorCount) {
           _lastDataTime[transmitterIndex] = DateTime.now();
           final double mag = (data['mag'] as num).toDouble();
@@ -158,7 +155,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!mounted) return;
       bool changed = false;
       final now = DateTime.now();
-      // DEĞİŞTİ: Döngü 6 motor için çalışıyor.
       for (int i = 0; i < motorCount; i++) {
         if (_motorStatus[i] != MotorStatus.inactive &&
             now.difference(_lastDataTime[i] ?? DateTime(1970)) >
@@ -201,14 +197,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _checkWifiAndConnect();
   }
 
-Future<void> _scanAndNavigateToDashboard() async {
-    // DEĞİŞTİ: Artık QR tarayıcıyı değil, ProductCodePage'i açıyoruz.
+  Future<void> _scanAndNavigateToDashboard() async {
     final result = await Navigator.pushNamed(context, '/product_code');
 
-    // ProductCodePage bir kod ile geri döndüğünde (pop), bu kod ile Dashboard'u açıyoruz.
     if (result != null && result is String && mounted) {
       final String productCode = result;
-      
       Navigator.pushNamed(
         context,
         '/dashboard',
@@ -220,7 +213,8 @@ Future<void> _scanAndNavigateToDashboard() async {
       );
     }
   }
-
+  
+  // ---------- DEĞİŞİKLİK 1: `build` METODU GÜNCELLENDİ ----------
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -246,37 +240,45 @@ Future<void> _scanAndNavigateToDashboard() async {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          // Bu özellik, elemanlar arasında boşluk bırakarak onları dikeyde dağıtır.
+          // Üstteki en üste, alttaki en alta, ortadaki de tam ortaya gelir.
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // 1. Üst Kısım: Durum Paneli
             _buildStatusPanel(l10n),
-            if (_currentSsid == targetSsid) ...[
-              const SizedBox(height: 16),
-              _buildTransmitterStatusPanel(),
-            ],
-            const Spacer(),
-            _buildConnectButton(l10n),
-            const SizedBox(height: 16),
-            // ---------- BURASI DEĞİŞTİ ----------
-            ElevatedButton.icon(
-              icon: const Icon(Icons.qr_code_scanner_rounded),
-              // Eğer localization dosyalarını güncellediyseniz bu satırı kullanın:
-              // label: Text(l10n.proceedToScanButton), 
-              // Şimdilik doğrudan metin girmek isterseniz bu satırı kullanın:
-              label: Text(l10n.proceedToScanButton),
-              style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    isConnected ? Colors.cyanAccent : Colors.grey[800],
-                foregroundColor: isConnected ? Colors.black : Colors.white54,
-                minimumSize: const Size(double.infinity, 50),
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+            
+            // 2. Orta Kısım: Motor Durumları (Büyütülmüş ve ortalanmış)
+            // Sadece Wi-Fi'ye bağlıyken gösterilir.
+            if (_currentSsid == targetSsid)
+              _buildTransmitterStatusPanel()
+            else
+              // Wi-Fi bağlı değilken orta kısmın boş kalmaması için boş bir widget ekliyoruz.
+              // Bu, alttaki butonların yerinin kaymasını engeller.
+              const SizedBox(),
+
+            // 3. Alt Kısım: Butonlar
+            // İki butonu bir arada tutmak için kendi Column'larına aldık.
+            Column(
+              children: [
+                _buildConnectButton(l10n),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                  label: Text(l10n.proceedToScanButton),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        isConnected ? Colors.cyanAccent : Colors.grey[800],
+                    foregroundColor: isConnected ? Colors.black : Colors.white54,
+                    minimumSize: const Size(double.infinity, 50),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onPressed: isConnected ? _scanAndNavigateToDashboard : null,
                 ),
-              ),
-              // Tıklandığında QR tarayıcıyı açacak olan yeni fonksiyonu çağırır.
-              // Sadece Wi-Fi'ye bağlıyken aktif olur.
-              onPressed: isConnected ? _scanAndNavigateToDashboard : null,
+              ],
             ),
-            // ---------- DEĞİŞİKLİK SONU ----------
           ],
         ),
       ),
@@ -342,67 +344,82 @@ Future<void> _scanAndNavigateToDashboard() async {
     );
   }
 
-  // DEĞİŞTİ: 6 motoru gösterecek şekilde Wrap widget'ı kullanıldı.
-  Widget _buildTransmitterStatusPanel() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Wrap(
-          alignment: WrapAlignment.spaceAround,
-          spacing: 16.0,
-          runSpacing: 16.0,
-          children: List.generate(motorCount, (index) {
-            final status = _motorStatus[index]!;
-            Color color;
-            switch (status) {
-              case MotorStatus.normal:
-                color = Colors.greenAccent;
-                break;
-              case MotorStatus.warning:
-                color = Colors.yellowAccent;
-                break;
-              case MotorStatus.outOfBounds:
-                color = Colors.redAccent;
-                break;
-              case MotorStatus.inactive:
-                color = Colors.grey[700]!;
-                break;
-            }
-            return Column(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color,
-                    boxShadow: [
-                      if (status != MotorStatus.inactive)
-                        BoxShadow(
-                          color: color.withOpacity(0.7),
-                          blurRadius: 6.0,
-                        ),
-                    ],
+  // lib/home_page.dart dosyasındaki bu fonksiyonu güncelleyin
+
+Widget _buildTransmitterStatusPanel() {
+  // Dil dosyalarından metinleri almak için l10n nesnesini alıyoruz.
+  final l10n = AppLocalizations.of(context)!;
+  final textTheme = Theme.of(context).textTheme;
+
+  return Card(
+    child: Padding(
+      padding: const EdgeInsets.all(24.0),
+      // DEĞİŞİKLİK: Başlık ve motorları dikeyde sıralamak için Column ekledik.
+      child: Column(
+        mainAxisSize: MainAxisSize.min, // İçeriğe göre boyutlanmasını sağlar.
+        children: [
+          // YENİ: Başlık metni
+          Text(
+            l10n.motorStatusTitle, // Bu metni dil dosyalarına ekleyeceğiz.
+            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+
+          // YENİ: Başlık ile içerik arasına görsel bir ayırıcı
+          const Divider(thickness: 1.0),
+          const SizedBox(height: 16),
+
+          // Mevcut motor göstergeleri (Wrap widget'ı)
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 24.0,
+            runSpacing: 24.0,
+            children: List.generate(motorCount, (index) {
+              final status = _motorStatus[index]!;
+              Color color;
+              switch (status) {
+                case MotorStatus.normal:      color = Colors.greenAccent; break;
+                case MotorStatus.warning:     color = Colors.yellowAccent; break;
+                case MotorStatus.outOfBounds: color = Colors.redAccent; break;
+                case MotorStatus.inactive:    color = Colors.grey[700]!; break;
+              }
+              return Column(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color,
+                      boxShadow: [
+                        if (status != MotorStatus.inactive)
+                          BoxShadow(
+                            color: color.withOpacity(0.7),
+                            blurRadius: 10.0,
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "M${index + 1}",
-                  style: TextStyle(
-                    color: status != MotorStatus.inactive
-                        ? Colors.white
-                        : Colors.white54,
-                    fontWeight: FontWeight.bold,
+                  const SizedBox(height: 12),
+                  Text(
+                    "M${index + 1}",
+                    style: textTheme.titleMedium?.copyWith(
+                      color: status != MotorStatus.inactive
+                          ? Colors.white
+                          : Colors.white54,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-              ],
-            );
-          }),
-        ),
+                ],
+              );
+            }),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildConnectButton(AppLocalizations l10n) {
     return ElevatedButton.icon(
