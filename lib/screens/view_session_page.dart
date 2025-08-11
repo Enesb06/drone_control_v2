@@ -1,3 +1,5 @@
+// lib/screens/view_session_page.dart dosyasının tam ve güncel hali
+
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -14,19 +16,19 @@ class ViewSessionPage extends StatefulWidget {
 }
 
 class _ViewSessionPageState extends State<ViewSessionPage> {
-  int _selectedIndex = 0; // 0:V1, 1:V2, 2:V3, 3:V4
+  int _selectedIndex = 0;
   final SettingsService _settingsService = SettingsService.instance;
   
-  // Orijinal kodunuzdaki değişkenler
   late double _minX, _maxX, _minY, _maxY;
   late double _initialMinX, _initialMaxX, _initialMinY, _initialMaxY;
 
   @override
   void initState() {
     super.initState();
-    _setupInitialBoundaries(); // Orijinaldeki gibi tek seferlik hesaplama
+    _setupInitialBoundaries();
   }
 
+  // DEĞİŞTİ: Artık 6 motorun verisini de döndürüyor.
   List<FlSpot> get _selectedData {
     switch (_selectedIndex) {
       case 0:
@@ -37,18 +39,24 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
         return widget.session.v3Data;
       case 3:
         return widget.session.v4Data;
+      case 4:
+        return widget.session.v5Data;
+      case 5:
+        return widget.session.v6Data;
       default:
         return [];
     }
   }
 
-  // Orijinal kodunuzdaki hesaplama fonksiyonu (değiştirilmedi)
+  // DEĞİŞTİ: Sınır hesaplaması artık 6 motorun verisini de içeriyor.
   void _setupInitialBoundaries() {
     final allData = [
       ...widget.session.v1Data,
       ...widget.session.v2Data,
       ...widget.session.v3Data,
       ...widget.session.v4Data,
+      ...widget.session.v5Data,
+      ...widget.session.v6Data,
     ];
 
     if (allData.isEmpty) {
@@ -67,13 +75,12 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
       
       _initialMinX -= xPadding;
       _initialMaxX += xPadding;
-      _initialMinY = 0; // Genelde mutlak değer grafiği çizeriz
+      _initialMinY = 0; 
       _initialMaxY += yPadding;
     }
     _resetZoom();
   }
 
-  // Orijinal kodunuzdaki reset fonksiyonu (değiştirilmedi)
   void _resetZoom() {
     setState(() {
       _minX = _initialMinX;
@@ -85,18 +92,15 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Sadece yerelleştirme için l10n değişkeni eklendi
     final l10n = AppLocalizations.of(context)!; 
 
     return Scaffold(
       appBar: AppBar(
-        // Text, l10n ile değiştirildi
         title: Text(l10n.viewSessionPageTitle(_selectedIndex + 1)),
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
           IconButton(
             icon: const Icon(Icons.zoom_out_map),
-            // tooltip, l10n ile değiştirildi
             tooltip: l10n.resetViewTooltip, 
             onPressed: _resetZoom,
           ),
@@ -104,7 +108,6 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
       ),
       body: _selectedData.isEmpty
           ? Center(
-              // Text, l10n ile değiştirildi
               child: Text(l10n.noDataForMotor(_selectedIndex + 1)),
             )
           : Padding(
@@ -142,7 +145,6 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
-                          // labelResolver, l10n ile değiştirildi
                           labelResolver: (line) => l10n.warningThresholdLabel,
                         ),
                       ),
@@ -160,7 +162,6 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
-                          // labelResolver, l10n ile değiştirildi
                           labelResolver: (line) => l10n.errorThresholdLabel,
                         ),
                       ),
@@ -202,20 +203,19 @@ class _ViewSessionPageState extends State<ViewSessionPage> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() {
-          // Orijinal kodunuzdaki gibi, onTap sadece index'i değiştiriyor.
-          // Sınırların yeniden hesaplanması için _setupInitialBoundaries çağrılmıyor.
           _selectedIndex = index;
         }),
         backgroundColor: Theme.of(context).primaryColor,
         selectedItemColor: Colors.cyanAccent,
         unselectedItemColor: Colors.white60,
         type: BottomNavigationBarType.fixed,
+        // DEĞİŞTİ: Buton sayısı 4'ten 6'ya çıkarıldı.
         items: List.generate(
-          4,
+          6,
           (i) => BottomNavigationBarItem(
             icon: const Icon(Icons.sensors_outlined),
             activeIcon: const Icon(Icons.sensors),
-            label: "V${i + 1}",
+            label: "M${i + 1}", // M1, M2, ..., M6 olarak etiketler
             backgroundColor: _settingsService.transmitterColors[i],
           ),
         ),

@@ -1,3 +1,5 @@
+// lib/home_page.dart dosyasının tam ve güncel hali
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -41,8 +43,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final StreamController<Map<String, dynamic>> _dataStreamController =
       StreamController.broadcast();
 
+  // DEĞİŞTİ: Motor sayısı 4'ten 6'ya çıkarıldı.
+  static const int motorCount = 6;
+
   final Map<int, MotorStatus> _motorStatus = {
-    for (var i = 0; i < 4; i++) i: MotorStatus.inactive,
+    for (var i = 0; i < motorCount; i++) i: MotorStatus.inactive,
   };
   final Map<int, DateTime> _lastDataTime = {};
   final Duration _inactiveTimeout = const Duration(seconds: 2);
@@ -124,7 +129,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _dataStreamController.add(data);
       if (data.containsKey('id')) {
         final int transmitterIndex = (data['id'] as int) - 1;
-        if (transmitterIndex >= 0 && transmitterIndex < 4) {
+        // DEĞİŞTİ: Index kontrolü 6 motor için yapıldı.
+        if (transmitterIndex >= 0 && transmitterIndex < motorCount) {
           _lastDataTime[transmitterIndex] = DateTime.now();
           final double mag = (data['mag'] as num).toDouble();
           MotorStatus newStatus;
@@ -151,7 +157,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!mounted) return;
       bool changed = false;
       final now = DateTime.now();
-      for (int i = 0; i < 4; i++) {
+      // DEĞİŞTİ: Döngü 6 motor için çalışıyor.
+      for (int i = 0; i < motorCount; i++) {
         if (_motorStatus[i] != MotorStatus.inactive &&
             now.difference(_lastDataTime[i] ?? DateTime(1970)) >
                 _inactiveTimeout) {
@@ -320,13 +327,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  // DEĞİŞTİ: 6 motoru gösterecek şekilde Wrap widget'ı kullanıldı.
   Widget _buildTransmitterStatusPanel() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: List.generate(4, (index) {
+        child: Wrap(
+          alignment: WrapAlignment.spaceAround,
+          spacing: 16.0,
+          runSpacing: 16.0,
+          children: List.generate(motorCount, (index) {
             final status = _motorStatus[index]!;
             Color color;
             switch (status) {

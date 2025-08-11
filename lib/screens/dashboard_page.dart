@@ -1,16 +1,18 @@
+// lib/dashboard_page.dart dosyasının tam ve güncel hali
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
+import 'dart:math' as math;
 import 'package:path_provider/path_provider.dart';
 import '../models/recorded_session.dart';
 import '../services/settings_service.dart';
 import 'home_page.dart';
 import 'package:drone_control_v2/l10n/app_localizations.dart';
 
-// Orijinal kodunuzdaki her şey aynı kalıyor
 enum DataType { x_axis, y_axis, z_axis, resultant }
 enum MotorStatus { normal, warning, outOfBounds, inactive }
 
@@ -23,19 +25,21 @@ class DroneDashboardPage extends StatefulWidget {
 }
 
 class _DroneDashboardPageState extends State<DroneDashboardPage> {
-  // --- Orijinal Değişkenler ---
+  // DEĞİŞTİ: Motor sayısı 6'ya çıkarıldı.
+  static const int motorCount = 6;
+
   DataType _selectedDataType = DataType.resultant;
   final Map<int, List<FlSpot>> _dataSpotsX = {
-    for (var i = 0; i < 4; i++) i: [],
+    for (var i = 0; i < motorCount; i++) i: [],
   };
   final Map<int, List<FlSpot>> _dataSpotsY = {
-    for (var i = 0; i < 4; i++) i: [],
+    for (var i = 0; i < motorCount; i++) i: [],
   };
   final Map<int, List<FlSpot>> _dataSpotsZ = {
-    for (var i = 0; i < 4; i++) i: [],
+    for (var i = 0; i < motorCount; i++) i: [],
   };
   final Map<int, List<FlSpot>> _dataSpotsResultant = {
-    for (var i = 0; i < 4; i++) i: [],
+    for (var i = 0; i < motorCount; i++) i: [],
   };
 
   late Map<int, MotorStatus> _motorStatus;
@@ -51,24 +55,23 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   bool _isFftView = false;
   static const int _fftSampleSize = 128;
   final Map<int, List<double>> _fftDataBuffer = {
-    for (var i = 0; i < 4; i++) i: [],
+    for (var i = 0; i < motorCount; i++) i: [],
   };
-  final Map<int, List<FlSpot>> _fftSpots = {for (var i = 0; i < 4; i++) i: []};
+  final Map<int, List<FlSpot>> _fftSpots = {for (var i = 0; i < motorCount; i++) i: []};
   static const double _samplingRate = 50.0;
 
   bool _isRecording = false;
   bool _sessionSaveProcessStarted = false;
   final Map<int, List<FlSpot>> _recordedSpotsResultant = {
-    for (var i = 0; i < 4; i++) i: [],
+    for (var i = 0; i < motorCount; i++) i: [],
   };
 
-  // YENİ EKLENEN STATE: Drone görsel görünümünü kontrol etmek için.
   bool _isDroneView = false;
 
   @override
   void initState() {
     super.initState();
-    _viewSelections = List.generate(5, (index) => index == 0);
+    _viewSelections = List.generate(motorCount + 1, (index) => index == 0);
     _motorStatus = Map.from(widget.args.initialMotorStatus);
     _dataSubscription = widget.args.dataStream.listen(_handleData);
     _startGuiTimer();
@@ -96,7 +99,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     if (data.containsKey('empty') && data['empty'] == true) return;
     if (!data.containsKey('id')) return;
     final int transmitterIndex = (data['id'] as int) - 1;
-    if (transmitterIndex < 0 || transmitterIndex >= 4) return;
+    if (transmitterIndex < 0 || transmitterIndex >= motorCount) return;
     final double ax = (data['ax'] as num).toDouble();
     final double ay = (data['ay'] as num).toDouble();
     final double az = (data['az'] as num).toDouble();
@@ -122,8 +125,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     else
       newStatus = MotorStatus.normal;
     if (_motorStatus[transmitterIndex] != newStatus) {
-      // DEĞİŞTİRİLDİ: Drone görselinin anında güncellenmesi için setState eklendi.
-      // Bu değişiklik, yeni özelliğin doğru çalışması için gereklidir.
       setState(() {
         _motorStatus[transmitterIndex] = newStatus;
       });
@@ -236,6 +237,8 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         v2Data: List.from(_recordedSpotsResultant[1]!),
         v3Data: List.from(_recordedSpotsResultant[2]!),
         v4Data: List.from(_recordedSpotsResultant[3]!),
+        v5Data: List.from(_recordedSpotsResultant[4]!),
+        v6Data: List.from(_recordedSpotsResultant[5]!),
       );
       final directory = await getApplicationDocumentsDirectory();
       final fileName = 'session_${session.id}.json';
@@ -257,7 +260,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   void _calculateAndSetFft() {
-    if (_selectedViewIndex >= 4 || !_isFftView) {
+    if (_selectedViewIndex >= motorCount || !_isFftView) {
       if (_fftSpots.containsKey(_selectedViewIndex) &&
           (_fftSpots[_selectedViewIndex]?.isNotEmpty ?? false)) {
         setState(() => _fftSpots[_selectedViewIndex] = []);
@@ -276,12 +279,10 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   }
 
   String _getAppBarTitle(AppLocalizations l10n) {
-    // DEĞİŞTİRİLDİ: Başlık, drone görünümünde her zaman "Tüm Motorlar" olacak.
     if (_isDroneView) {
       return l10n.dashboardAppBarTitleAllMotors;
     }
-    
-    String baseTitle = (_selectedViewIndex < 4)
+    String baseTitle = (_selectedViewIndex < motorCount)
         ? l10n.dashboardAppBarTitleMotor(_selectedViewIndex + 1)
         : l10n.dashboardAppBarTitleAllMotors;
     return _isFftView ? '$baseTitle ${l10n.dashboardAppBarTitleFFT}' : baseTitle;
@@ -289,7 +290,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   void _handleViewSelection(int index) {
     setState(() {
-      if (index == 4) _isFftView = false;
+      if (index == motorCount) _isFftView = false;
       _selectedViewIndex = index;
       for (int i = 0; i < _viewSelections.length; i++) {
         _viewSelections[i] = (i == index);
@@ -300,8 +301,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    bool isAllView = _selectedViewIndex == 4;
-    // DEĞİŞTİRİLDİ: Segmented button artık drone görünümünde de gizlenecek.
+    bool isAllView = _selectedViewIndex == motorCount;
     bool showSegmentedButton = !isAllView && !_isFftView && !_isDroneView;
 
     return Scaffold(
@@ -332,7 +332,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         ),
          backgroundColor: Theme.of(context).primaryColor,
         actions: [
-          // DEĞİŞİKLİK BURADA: Drone/Grafik butonu artık FFT görünümü aktifken gizlenecek.
           if (!_isFftView)
             IconButton(
               icon: Icon(_isDroneView ? Icons.show_chart_rounded : Icons.view_in_ar_outlined),
@@ -342,7 +341,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                   _isDroneView = !_isDroneView;
                   if (_isDroneView) {
                     _isFftView = false;
-                    _handleViewSelection(4);
+                    _handleViewSelection(motorCount);
                 }
               });
             },
@@ -358,7 +357,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 if (!_sessionSaveProcessStarted) _stopAndPromptSave(context);
               },
             ),
-          // DEĞİŞTİRİLDİ: FFT butonu, drone görünümündeyken de gizlenir.
           if (!isAllView && !_isDroneView)
             IconButton(
               icon: Icon(_isFftView ? Icons.show_chart : Icons.ssid_chart),
@@ -399,69 +397,143 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               )
             : null,
       ),
-      // DEĞİŞTİRİLDİ: Body artık 3 durumu kontrol ediyor: Drone, FFT veya normal grafik.
       body: _isDroneView
-          ? _buildDroneVisualFinal() // YENİ WIDGET
+          ? _buildHexagonDroneVisual()
           : (_isFftView ? _buildFftGraph(l10n) : _buildGraph(l10n)),
       bottomNavigationBar: _buildViewSelector(l10n),
     );
   }
   
-  // YENİ EKLENDİ: Drone görselini oluşturan ana widget.
-Widget _buildDroneVisualFinal() {
-  return Center(
-    child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Merkezi Gövde
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.grey.shade800,
-                gradient: RadialGradient(
-                  colors: [Colors.grey.shade700, Colors.grey.shade900],
-                ),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 10, spreadRadius: 2),
-                ],
-              ),
-            ),
+// RESPONSIVE ALTIGEN DRONE GÖRSELİ - Tüm ekran boyutlarına uyum sağlar
+Widget _buildHexagonDroneVisual() {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      // Ekran boyutuna göre dinamik boyutları hesapla
+      final double screenWidth = MediaQuery.of(context).size.width;
+      final double screenHeight = MediaQuery.of(context).size.height;
+      final double availableSize = math.min(constraints.maxWidth, constraints.maxHeight);
+      
+      // Responsive boyutlar - ekran boyutuna göre otomatik ayarlama
+      final double containerSize = (availableSize * 0.85).clamp(280.0, 450.0);
+      final double motorPodSize = (containerSize * 0.17).clamp(45.0, 75.0);
+      final double centerBodySize = (containerSize * 0.23).clamp(60.0, 100.0);
+      final double armWidth = (containerSize * 0.035).clamp(10.0, 18.0);
+      final double armLength = (containerSize * 0.55).clamp(120.0, 190.0);
+      final double labelFontSize = (containerSize * 0.035).clamp(10.0, 16.0);
+      
+      // 6 motorun TAM SİMETRİK açıları (derece cinsinden)
+      final List<double> angles = [0, 60, 120, 180, 240, 300];
+      
+      // 6 motorun etiketleri
+      final List<String> labels = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6'];
+      
+      return Center(
+        child: Container(
+          width: containerSize,
+          height: containerSize,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // 1. ADIM: Kolları TAM SİMETRİK olarak çiz
+              ...List.generate(6, (i) {
+                return Transform.rotate(
+                  angle: angles[i] * (pi / 180),
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: armLength,
+                      height: armWidth,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3A3A3A),
+                        borderRadius: BorderRadius.circular(armWidth * 0.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: armWidth * 0.3,
+                            offset: Offset(0, armWidth * 0.15),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
 
-            // Motorlar ve Kollar
-            // Her bir motor ve kolu kendi hizalamasıyla yerleştiriyoruz.
-            _buildMotorAndArm(0, 'M1', Alignment.topCenter),
-            _buildMotorAndArm(1, 'M2', Alignment.centerRight),
-            _buildMotorAndArm(2, 'M3', Alignment.bottomCenter),
-            _buildMotorAndArm(3, 'M4', Alignment.centerLeft),
-          ],
+              // 2. ADIM: Motorları kolların ucuna TAM SİMETRİK olarak yerleştir
+              ...List.generate(6, (i) {
+                final double angle = angles[i] * (pi / 180);
+                final double motorDistance = armLength / 2 + motorPodSize / 2 - (containerSize * 0.025);
+                final double x = math.cos(angle) * motorDistance;
+                final double y = math.sin(angle) * motorDistance;
+                
+                return Transform.translate(
+                  offset: Offset(x, y),
+                  child: _buildResponsiveMotorPod(
+                    i, 
+                    labels[i], 
+                    motorPodSize, 
+                    labelFontSize
+                  ),
+                );
+              }),
+
+              // 3. ADIM: Merkezi gövdeyi en üste çiz
+              Container(
+                width: centerBodySize,
+                height: centerBodySize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.grey.shade800,
+                  gradient: RadialGradient(
+                    colors: [Colors.grey.shade600, Colors.grey.shade900],
+                    stops: const [0.3, 1.0],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: centerBodySize * 0.2,
+                      spreadRadius: centerBodySize * 0.04,
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Container(
+                    width: centerBodySize * 0.25,
+                    height: centerBodySize * 0.25,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.grey.shade700,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.4),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }
 
-// YENİ FİNAL VERSİYON: Tek bir motoru, kolunu ve etiketini simetrik olarak çizen yardımcı widget
-Widget _buildMotorAndArm(int motorIndex, String label, Alignment alignment) {
+// RESPONSIVE motor yuvasını çizen yardımcı widget
+Widget _buildResponsiveMotorPod(int motorIndex, String label, double motorSize, double fontSize) {
   final status = _motorStatus[motorIndex] ?? MotorStatus.inactive;
-  final bool isVertical = alignment.y != 0;
-
-  // Motor durumuna göre renk belirleme
   Color indicatorColor;
   switch (status) {
     case MotorStatus.normal:      indicatorColor = Colors.greenAccent; break;
     case MotorStatus.warning:     indicatorColor = Colors.yellowAccent; break;
     case MotorStatus.outOfBounds: indicatorColor = Colors.redAccent; break;
-    case MotorStatus.inactive:    indicatorColor = Colors.grey.shade700; break;
+    case MotorStatus.inactive:    indicatorColor = Colors.grey.shade600; break;
   }
 
-  // Motor yuvası ve ışığı
-  final Widget motorPod = GestureDetector(
+  return GestureDetector(
     onTap: () {
       setState(() {
         _isDroneView = false;
@@ -469,91 +541,87 @@ Widget _buildMotorAndArm(int motorIndex, String label, Alignment alignment) {
       });
     },
     child: Container(
-      width: 65,
-      height: 65,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFF3A3A3A), // Koyu gri yuva rengi
-        border: Border.all(color: Colors.black.withOpacity(0.5), width: 2),
-      ),
-      child: Center(
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          width: 55,
-          height: 55,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: indicatorColor,
-            boxShadow: [
-              if (status != MotorStatus.inactive)
+      width: motorSize * 1.4,
+      height: motorSize * 1.4,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Motor yuvası
+          Container(
+            width: motorSize,
+            height: motorSize,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF2A2A2A),
+              border: Border.all(
+                color: Colors.black.withOpacity(0.6), 
+                width: motorSize * 0.03
+              ),
+              boxShadow: [
                 BoxShadow(
-                  color: indicatorColor.withOpacity(0.6),
-                  blurRadius: 15.0,
-                  spreadRadius: 1.0,
+                  color: Colors.black.withOpacity(0.4),
+                  blurRadius: motorSize * 0.15,
+                  offset: Offset(0, motorSize * 0.03),
                 ),
-            ],
+              ],
+            ),
+            child: Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: motorSize * 0.8,
+                height: motorSize * 0.8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: indicatorColor,
+                  boxShadow: [
+                    if (status != MotorStatus.inactive)
+                      BoxShadow(
+                        color: indicatorColor.withOpacity(0.7),
+                        blurRadius: motorSize * 0.35,
+                        spreadRadius: motorSize * 0.035,
+                      ),
+                  ],
+                ),
+                child: Center(
+                  child: Container(
+                    width: motorSize * 0.2,
+                    height: motorSize * 0.2,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.3),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
+          // Motor etiketi - responsive pozisyonlama
+          Positioned(
+            bottom: -fontSize * 0.5,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: fontSize * 0.5, 
+                vertical: fontSize * 0.15
+              ),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(fontSize * 0.6),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: fontSize,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-    ),
-  );
-
-  // Motor kolu
-  final Widget arm = Container(
-    width: isVertical ? 14 : 45, // dikeyde dar, yatayda geniş
-    height: isVertical ? 45 : 14, // dikeyde uzun, yatayda dar
-    color: const Color(0xFF3A3A3A),
-  );
-  
-  // Etiket
-  final Widget motorLabel = Text(
-    label,
-    style: const TextStyle(
-      fontWeight: FontWeight.bold,
-      color: Colors.white70,
-      fontSize: 16,
-    ),
-  );
-
-  // Dikey (M1, M3) ve Yatay (M2, M4) yerleşimleri için farklı yapı
-  Widget assembly;
-  if (isVertical) {
-    // M1 (üst) ve M3 (alt) için Dikey Sütun
-    assembly = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: alignment.y < 0
-          ? [motorPod, arm]  // M1: Üstte motor, altta kol
-          : [arm, motorPod], // M3: Üstte kol, altta motor
-    );
-  } else {
-    // M2 (sağ) ve M4 (sol) için Yatay Satır
-    assembly = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: alignment.x < 0
-          ? [motorPod, arm]  // M4: Solda motor, sağda kol
-          : [arm, motorPod], // M2: Solda kol, sağda motor
-    );
-  }
-
-  // Etiketi doğru konuma yerleştirmek için Stack kullanıyoruz
-  return Align(
-    alignment: alignment,
-    child: Stack(
-      alignment: alignment,
-      children: [
-        assembly,
-        // Etiketi motorun dışına itmek için Padding kullanıyoruz
-        Padding(
-          padding: isVertical
-            ? EdgeInsets.symmetric(vertical: 65.0 + 8.0)
-            : EdgeInsets.symmetric(horizontal: 65.0 + 8.0),
-          child: motorLabel,
-        )
-      ],
     ),
   );
 }
-
   Widget _buildSegmentedButton(DataType type, String label) {
     bool isSelected = _selectedDataType == type;
     return Expanded(
@@ -578,7 +646,7 @@ Widget _buildMotorAndArm(int motorIndex, String label, Alignment alignment) {
   }
 
   Widget _buildFftGraph(AppLocalizations l10n) {
-    if (_selectedViewIndex >= 4)
+    if (_selectedViewIndex >= motorCount)
       return Center(
         child: Text(l10n.fftAnalysisNotAvailableForAll),
       );
@@ -642,142 +710,116 @@ Widget _buildMotorAndArm(int motorIndex, String label, Alignment alignment) {
     );
   }
   
-  Widget _buildViewSelector(AppLocalizations l10n) {
-    // DEĞİŞTİRİLDİ: "Tümü" butonu, drone görünümündeyken de görünür ve seçili kalır.
-    final int buttonCount = (_isFftView && !_isDroneView) ? 4 : 5;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-      color: Theme.of(context).primaryColor,
-      child: Row(
-        children: List.generate(buttonCount, (index) {
-          // Drone görünümündeyken "Tümü" sekmesi seçili görünür.
-          bool isSelected = _isDroneView ? (index == 4) : _viewSelections[index];
-          
-          if (index < 4) {
-            final Color borderColor =
-                _settingsService.transmitterColors[index];
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                child: OutlinedButton(
-                  onPressed: () {
-                    // Drone görünümünden çıkıp ilgili motoru seç
-                    if (_isDroneView) setState(() => _isDroneView = false);
-                    _handleViewSelection(index);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    backgroundColor: isSelected
-                        ? Colors.cyan.withOpacity(0.2)
-                        : Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    side: BorderSide(
-                      color: isSelected ? Colors.cyanAccent : borderColor,
-                      width: isSelected ? 2.5 : 2.0,
-                    ),
-                  ),
-                  child:
-                      _buildMotorTab("M${index + 1}", _motorStatus[index]!),
+// DEĞİŞTİRİLDİ: Expanded ile butonların içeriğinin ekrana sığması sağlandı.
+Widget _buildViewSelector(AppLocalizations l10n) {
+  final int buttonCount = (_isFftView && !_isDroneView) ? motorCount : motorCount + 1;
+  return Container(
+    padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+    color: Theme.of(context).primaryColor,
+    child: Row(
+      children: List.generate(buttonCount, (index) {
+        bool isSelected = _isDroneView ? (index == motorCount) : _viewSelections[index];
+        
+        if (index < motorCount) {
+          final Color borderColor =
+              _settingsService.transmitterColors[index];
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2.0),
+              child: OutlinedButton(
+                onPressed: () {
+                  if (_isDroneView) setState(() => _isDroneView = false);
+                  _handleViewSelection(index);
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6), // İç boşluğu ayarla
+                  backgroundColor: isSelected ? Colors.cyan.withOpacity(0.2) : Colors.transparent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+                  side: BorderSide(color: isSelected ? Colors.cyanAccent : borderColor, width: isSelected ? 2.5 : 2.0),
                 ),
+                child: _buildMotorTab("M${index + 1}", _motorStatus[index]!),
               ),
-            );
-          } else {
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                child: OutlinedButton(
-                  onPressed: () {
-                    if (_isDroneView) setState(() => _isDroneView = false);
-                    _handleViewSelection(index);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    backgroundColor: isSelected
-                        ? Colors.cyan.withOpacity(0.2)
-                        : Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
+            ),
+          );
+        } else {
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2.0),
+              child: OutlinedButton(
+                onPressed: () {
+                  if (_isDroneView) setState(() => _isDroneView = false);
+                  _handleViewSelection(index);
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6), // İç boşluğu ayarla
+                  backgroundColor: isSelected ? Colors.cyan.withOpacity(0.2) : Colors.transparent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+                  side: BorderSide(color: isSelected ? Colors.cyanAccent : Colors.white24, width: isSelected ? 2.5 : 2.0),
+                ),
+                child: FittedBox( // ALL yazısının da sığmasını garantile
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    l10n.allButton.toUpperCase(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.cyanAccent : Colors.white70,
                     ),
-                    side: BorderSide(
-                      color: isSelected ? Colors.cyanAccent : Colors.white24,
-                      width: isSelected ? 2.5 : 2.0,
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12.0),
-                    child: Text(
-                      l10n.allButton.toUpperCase(),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.cyanAccent : Colors.white70,
-                      ),
-                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
-            );
-          }
-        }),
-      ),
-    );
-  }
-
-  Widget _buildMotorTab(String title, MotorStatus status) {
-    Color indicatorColor;
-    switch (status) {
-      case MotorStatus.normal:
-        indicatorColor = Colors.greenAccent;
-        break;
-      case MotorStatus.warning:
-        indicatorColor = Colors.yellowAccent;
-        break;
-      case MotorStatus.outOfBounds:
-        indicatorColor = Colors.redAccent;
-        break;
-      case MotorStatus.inactive:
-        indicatorColor = Colors.grey[600]!;
-        break;
-    }
-    // DEĞİŞTİRİLDİ: Seçim mantığı _isDroneView'ı da dikkate alacak şekilde güncellendi.
-    final bool isCurrentlySelected = _isDroneView
-        ? false // Drone görünümünde tekli sekmeler seçili değildir
-        : (_viewSelections.length > _selectedViewIndex &&
-            _viewSelections[_selectedViewIndex] &&
-            title == "M${_selectedViewIndex + 1}");
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: isCurrentlySelected ? Colors.cyanAccent : Colors.white70,
             ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: indicatorColor,
-            ),
-          ),
-        ],
-      ),
-    );
+          );
+        }
+      }),
+    ),
+  );
+}
+
+// DEĞİŞTİRİLDİ: FittedBox ile içeriğin butona sığması sağlandı.
+Widget _buildMotorTab(String title, MotorStatus status) {
+  Color indicatorColor;
+  switch (status) {
+    case MotorStatus.normal: indicatorColor = Colors.greenAccent; break;
+    case MotorStatus.warning: indicatorColor = Colors.yellowAccent; break;
+    case MotorStatus.outOfBounds: indicatorColor = Colors.redAccent; break;
+    case MotorStatus.inactive: indicatorColor = Colors.grey[600]!; break;
   }
+  final bool isCurrentlySelected = _isDroneView
+      ? false
+      : (_viewSelections.length > _selectedViewIndex &&
+          _viewSelections[_selectedViewIndex] &&
+          title == "M${_selectedViewIndex + 1}");
+
+  // FittedBox, içindeki Row'un kendisine ayrılan alana sığacak şekilde küçülmesini sağlar.
+  return FittedBox(
+    fit: BoxFit.scaleDown, // Oranları koruyarak küçült
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: isCurrentlySelected ? Colors.cyanAccent : Colors.white70,
+          ),
+        ),
+        const SizedBox(width: 4), // Boşluğu biraz azalttık
+        Container(
+          width: 8, // İkonu biraz azalttık
+          height: 8,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: indicatorColor),
+        ),
+      ],
+    ),
+  );
+}
   
   Widget _buildGraph(AppLocalizations l10n) {
     final double minX = max(0.0, _globalTime - _displaySeconds);
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
     List<LineChartBarData> lines = [];
-    if (_selectedViewIndex == 4) {
-      for (int i = 0; i < 4; i++) {
+    if (_selectedViewIndex == motorCount) {
+      for (int i = 0; i < motorCount; i++) {
         if (_motorStatus[i] != MotorStatus.inactive) {
           lines.add(
             LineChartBarData(
@@ -795,18 +837,10 @@ Widget _buildMotorAndArm(int motorIndex, String label, Alignment alignment) {
     } else {
       List<FlSpot> spots;
       switch (_selectedDataType) {
-        case DataType.x_axis:
-          spots = _dataSpotsX[_selectedViewIndex]!;
-          break;
-        case DataType.y_axis:
-          spots = _dataSpotsY[_selectedViewIndex]!;
-          break;
-        case DataType.z_axis:
-          spots = _dataSpotsZ[_selectedViewIndex]!;
-          break;
-        case DataType.resultant:
-          spots = _dataSpotsResultant[_selectedViewIndex]!;
-          break;
+        case DataType.x_axis: spots = _dataSpotsX[_selectedViewIndex]!; break;
+        case DataType.y_axis: spots = _dataSpotsY[_selectedViewIndex]!; break;
+        case DataType.z_axis: spots = _dataSpotsZ[_selectedViewIndex]!; break;
+        case DataType.resultant: spots = _dataSpotsResultant[_selectedViewIndex]!; break;
       }
       lines.add(
         LineChartBarData(
@@ -838,11 +872,7 @@ Widget _buildMotorAndArm(int motorIndex, String label, Alignment alignment) {
                   show: true,
                   alignment: Alignment.topRight,
                   padding: const EdgeInsets.only(right: 5, bottom: 2),
-                  style: TextStyle(
-                    color: Colors.yellowAccent.withOpacity(0.9),
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(color: Colors.yellowAccent.withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.bold),
                   labelResolver: (line) => l10n.warningThresholdLabel,
                 ),
               ),
@@ -855,11 +885,7 @@ Widget _buildMotorAndArm(int motorIndex, String label, Alignment alignment) {
                   show: true,
                   alignment: Alignment.topRight,
                   padding: const EdgeInsets.only(right: 5, bottom: 2),
-                  style: TextStyle(
-                    color: Colors.redAccent.withOpacity(0.9),
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(color: Colors.redAccent.withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.bold),
                   labelResolver: (line) => l10n.errorThresholdLabel,
                 ),
               ),
@@ -873,28 +899,10 @@ Widget _buildMotorAndArm(int motorIndex, String label, Alignment alignment) {
                 const FlLine(color: Colors.white10, strokeWidth: 0.5),
           ),
           titlesData: FlTitlesData(
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 32,
-                interval: 4.0,
-                getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)),
-              ),
-            ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 28,
-                interval: 1.0,
-                getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)),
-              ),
-            ),
-            topTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
+            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 32, interval: 4.0, getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)))),
+            bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 28, interval: 1.0, getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)))),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
           borderData: FlBorderData(show: false),
         ),
@@ -904,22 +912,15 @@ Widget _buildMotorAndArm(int motorIndex, String label, Alignment alignment) {
   }
 }
 
-// FFT Sınıfları (Orijinal haliyle bırakıldı)
+// FFT sınıfları aynı kalıyor
 class Complex {
   double real;
   double imag;
-
   Complex(this.real, this.imag);
-
   double abs() => sqrt(real * real + imag * imag);
-  Complex operator +(Complex other) =>
-      Complex(real + other.real, imag + other.imag);
-  Complex operator -(Complex other) =>
-      Complex(real - other.real, imag - other.imag);
-  Complex operator *(Complex other) => Complex(
-        real * other.real - imag * other.imag,
-        real * other.imag + imag * other.real,
-      );
+  Complex operator +(Complex other) => Complex(real + other.real, imag + other.imag);
+  Complex operator -(Complex other) => Complex(real - other.real, imag - other.imag);
+  Complex operator *(Complex other) => Complex(real * other.real - imag * other.imag, real * other.imag + imag * other.real);
 }
 
 class FFT {
@@ -955,20 +956,14 @@ class FFT {
     return y;
   }
 
-  static List<FlSpot> computeRealFFTMagnitude(
-    List<double> realData,
-    double sampleRate,
-  ) {
+  static List<FlSpot> computeRealFFTMagnitude(List<double> realData, double sampleRate) {
     int n = realData.length;
     if (n == 0) return [];
     int fftSize = 1;
     while (fftSize < n) {
       fftSize <<= 1;
     }
-    List<Complex> complexInput = List.generate(
-      fftSize,
-      (i) => i < n ? Complex(realData[i], 0.0) : Complex(0.0, 0.0),
-    );
+    List<Complex> complexInput = List.generate(fftSize, (i) => i < n ? Complex(realData[i], 0.0) : Complex(0.0, 0.0));
     List<Complex> result = fft(complexInput, false);
     List<FlSpot> fftSpots = [];
     for (int i = 0; i <= fftSize ~/ 2; i++) {

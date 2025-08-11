@@ -1,3 +1,5 @@
+// lib/screens/settings_page.dart dosyasının tam ve güncel hali
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -180,8 +182,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const Divider(color: Colors.cyanAccent),
                 const SizedBox(height: 10),
+                // DEĞİŞTİ: Renk seçici artık 6 motor için oluşturuluyor.
                 ...List.generate(
-                  4,
+                  SettingsService.motorCount,
                   (index) => _buildColorPickerTile(
                     index: index,
                     title: l10n.motorColorSetting(index + 1),
