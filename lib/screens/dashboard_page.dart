@@ -710,62 +710,120 @@ Widget _buildResponsiveMotorPod(int motorIndex, String label, double motorSize, 
     );
   }
   
-// DEĞİŞTİRİLDİ: Expanded ile butonların içeriğinin ekrana sığması sağlandı.
 Widget _buildViewSelector(AppLocalizations l10n) {
+  // Bu bölüm aynı kalıyor
   final int buttonCount = (_isFftView && !_isDroneView) ? motorCount : motorCount + 1;
+  
+  // YENİ YAPI:
+  // Butonlar ve altındaki çizgileri dikeyde hizalamak için her birini Column içine alacağız.
+  // bottomNavigationBar'ın rengini ve padding'ini ayarlayalım.
   return Container(
     padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-    color: Theme.of(context).primaryColor,
+    color: Theme.of(context).primaryColor, // Arka plan rengi
     child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start, // Column'ların tepeden başlamasını sağlar
       children: List.generate(buttonCount, (index) {
         bool isSelected = _isDroneView ? (index == motorCount) : _viewSelections[index];
-        
+
+        // M1'den M6'ya kadar olan motor butonları
         if (index < motorCount) {
-          final Color borderColor =
-              _settingsService.transmitterColors[index];
+          // Her motorun kendi rengini alıyoruz
+          final Color motorColor = _settingsService.transmitterColors[index];
+          
           return Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2.0),
-              child: OutlinedButton(
-                onPressed: () {
+              // GestureDetector ile tüm alana tıklama özelliği veriyoruz
+              child: GestureDetector(
+                onTap: () {
                   if (_isDroneView) setState(() => _isDroneView = false);
                   _handleViewSelection(index);
                 },
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6), // İç boşluğu ayarla
-                  backgroundColor: isSelected ? Colors.cyan.withOpacity(0.2) : Colors.transparent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-                  side: BorderSide(color: isSelected ? Colors.cyanAccent : borderColor, width: isSelected ? 2.5 : 2.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min, // Column'un dikeyde minimum yer kaplamasını sağlar
+                  children: [
+                    // 1. Üst Kısım: Butonun kendisi (çerçeveli kutu)
+                    Container(
+                      width: double.infinity, // Genişliği doldur
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.cyan.withOpacity(0.2) : Colors.transparent,
+                        // Çiziminizdeki gibi standart bir çerçeve
+                        border: Border.all(
+                          color: isSelected ? Colors.cyanAccent : Colors.grey.shade700,
+                          width: isSelected ? 2.0 : 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      // Butonun içindeki "M1" yazısı ve durum noktası
+                      child: _buildMotorTab("M${index + 1}", _motorStatus[index]!),
+                    ),
+                    // Buton ile çizgi arasına boşluk
+                    const SizedBox(height: 5.0),
+                    // 2. Alt Kısım: Renkli Çizgi
+                    Container(
+                      height: 3.5,
+                      width: 30, // Çizgi genişliği
+                      decoration: BoxDecoration(
+                        color: motorColor, // Her motorun kendi rengi
+                        borderRadius: BorderRadius.circular(2.0),
+                      ),
+                    ),
+                  ],
                 ),
-                child: _buildMotorTab("M${index + 1}", _motorStatus[index]!),
               ),
             ),
           );
-        } else {
+        } 
+        // "ALL" butonu
+        else {
           return Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2.0),
-              child: OutlinedButton(
-                onPressed: () {
+              child: GestureDetector(
+                onTap: () {
                   if (_isDroneView) setState(() => _isDroneView = false);
                   _handleViewSelection(index);
                 },
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6), // İç boşluğu ayarla
-                  backgroundColor: isSelected ? Colors.cyan.withOpacity(0.2) : Colors.transparent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-                  side: BorderSide(color: isSelected ? Colors.cyanAccent : Colors.white24, width: isSelected ? 2.5 : 2.0),
-                ),
-                child: FittedBox( // ALL yazısının da sığmasını garantile
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    l10n.allButton.toUpperCase(),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.cyanAccent : Colors.white70,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 1. Üst Kısım: ALL Butonu
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.cyan.withOpacity(0.2) : Colors.transparent,
+                        border: Border.all(
+                          color: isSelected ? Colors.cyanAccent : Colors.grey.shade700,
+                          width: isSelected ? 2.0 : 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            l10n.allButton.toUpperCase(),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isSelected ? Colors.cyanAccent : Colors.white70,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                    // Buton ile çizgi arasına boşluk
+                    const SizedBox(height: 5.0),
+                    // 2. Alt Kısım: ALL butonunun altında çizgi olmayacağı için boş bir alan bırakıyoruz
+                    // Bu, diğer butonlarla hizalamanın bozulmamasını sağlar.
+                    Container(
+                      height: 3.5,
+                      width: 30,
+                      color: Colors.transparent, // Görünmez çizgi
+                    ),
+                  ],
                 ),
               ),
             ),
