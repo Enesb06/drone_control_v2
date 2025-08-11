@@ -253,4 +253,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get changeButton => 'Değiştir';
+
+  @override
+  String get proceedToScanButton => 'Ürünü Tara ve Başlat';
 }

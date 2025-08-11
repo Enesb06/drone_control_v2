@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -200,17 +201,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _checkWifiAndConnect();
   }
 
-  void _navigateToDashboard() {
-    final productCode = ModalRoute.of(context)!.settings.arguments as String;
-    Navigator.pushNamed(
-      context,
-      '/dashboard',
-      arguments: DashboardArguments(
-        productCode: productCode,
-        dataStream: _dataStreamController.stream,
-        initialMotorStatus: Map.from(_motorStatus),
-      ),
-    );
+Future<void> _scanAndNavigateToDashboard() async {
+    // DEĞİŞTİ: Artık QR tarayıcıyı değil, ProductCodePage'i açıyoruz.
+    final result = await Navigator.pushNamed(context, '/product_code');
+
+    // ProductCodePage bir kod ile geri döndüğünde (pop), bu kod ile Dashboard'u açıyoruz.
+    if (result != null && result is String && mounted) {
+      final String productCode = result;
+      
+      Navigator.pushNamed(
+        context,
+        '/dashboard',
+        arguments: DashboardArguments(
+          productCode: productCode,
+          dataStream: _dataStreamController.stream,
+          initialMotorStatus: Map.from(_motorStatus),
+        ),
+      );
+    }
   }
 
   @override
@@ -247,12 +255,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             const Spacer(),
             _buildConnectButton(l10n),
             const SizedBox(height: 16),
+            // ---------- BURASI DEĞİŞTİ ----------
             ElevatedButton.icon(
-              icon: const Icon(Icons.bar_chart_rounded),
-              label: Text(l10n.viewGraphButton),
+              icon: const Icon(Icons.qr_code_scanner_rounded),
+              // Eğer localization dosyalarını güncellediyseniz bu satırı kullanın:
+              // label: Text(l10n.proceedToScanButton), 
+              // Şimdilik doğrudan metin girmek isterseniz bu satırı kullanın:
+              label: Text(l10n.proceedToScanButton),
               style: ElevatedButton.styleFrom(
                 backgroundColor:
-                    isConnected ? Colors.greenAccent : Colors.grey[800],
+                    isConnected ? Colors.cyanAccent : Colors.grey[800],
                 foregroundColor: isConnected ? Colors.black : Colors.white54,
                 minimumSize: const Size(double.infinity, 50),
                 textStyle: const TextStyle(
@@ -260,8 +272,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              onPressed: isConnected ? _navigateToDashboard : null,
+              // Tıklandığında QR tarayıcıyı açacak olan yeni fonksiyonu çağırır.
+              // Sadece Wi-Fi'ye bağlıyken aktif olur.
+              onPressed: isConnected ? _scanAndNavigateToDashboard : null,
             ),
+            // ---------- DEĞİŞİKLİK SONU ----------
           ],
         ),
       ),

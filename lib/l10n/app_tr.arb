@@ -73,5 +73,6 @@
     "settingsSavedSuccessfully": "Ayarlar başarıyla kaydedildi!",
     "selectMotorColorTitle": "Motor {motorNumber} Rengini Seçin",
     "okButton": "Tamam",
-    "changeButton": "Değiştir"
+    "changeButton": "Değiştir",
+    "proceedToScanButton": "Ürünü Tara ve Başlat"
 }

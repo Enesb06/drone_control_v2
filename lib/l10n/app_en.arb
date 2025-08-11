@@ -73,5 +73,6 @@
     "settingsSavedSuccessfully": "Settings saved successfully!",
     "selectMotorColorTitle": "Select Motor {motorNumber} Color",
     "okButton": "OK",
-    "changeButton": "Change"
+    "changeButton": "Change",
+    "proceedToScanButton": "Scan and Start"
 }

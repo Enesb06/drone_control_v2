@@ -1,3 +1,5 @@
+// lib/main.dart dosyasının YENİ HALİ
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:drone_control_v2/screens/home_page.dart';
@@ -5,8 +7,11 @@ import 'package:drone_control_v2/screens/dashboard_page.dart';
 import 'package:drone_control_v2/screens/settings_page.dart';
 import 'package:drone_control_v2/services/settings_service.dart';
 import 'package:drone_control_v2/screens/saved_sessions_page.dart';
-import 'package:drone_control_v2/screens/product_code_page.dart';
+// DEĞİŞTİ: ProductCodePage'i tekrar import ediyoruz.
+import 'package:drone_control_v2/screens/product_code_page.dart'; 
 import 'package:drone_control_v2/screens/wifi_selection_page.dart';
+// DEĞİŞTİ: QR Scanner'ı da import ediyoruz, ProductCodePage içinden çağrılacak.
+import 'package:drone_control_v2/screens/qr_scanner_page.dart';
 import 'package:drone_control_v2/providers/locale_provider.dart';
 import 'package:drone_control_v2/l10n/app_localizations.dart';
 
@@ -48,10 +53,13 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
+      // Başlangıç rotası doğru, HomePage olmalı.
       initialRoute: '/',
       routes: {
-        '/': (context) => const ProductCodePage(),
-        '/home': (context) => const HomePage(),
+        '/': (context) => const HomePage(),
+        // YENİ: ProductCodePage için bir rota ekliyoruz.
+        '/product_code': (context) => const ProductCodePage(), 
+        '/qr_scanner': (context) => const QRScannerPage(),
         '/wifi_selection': (context) => const WifiSelectionPage(),
         '/dashboard': (context) {
           final args =

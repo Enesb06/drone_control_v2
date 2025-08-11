@@ -253,4 +253,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get changeButton => 'Change';
+
+  @override
+  String get proceedToScanButton => 'Scan and Start';
 }

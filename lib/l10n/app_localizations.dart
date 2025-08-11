@@ -538,6 +538,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Change'**
   String get changeButton;
+
+  /// No description provided for @proceedToScanButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan and Start'**
+  String get proceedToScanButton;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

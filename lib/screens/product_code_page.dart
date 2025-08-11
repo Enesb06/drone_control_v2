@@ -1,5 +1,9 @@
+// lib/screens/product_code_page.dart dosyasının YENİ hali
+
 import 'package:flutter/material.dart';
-import 'qr_scanner_page.dart';
+// DEĞİŞİKLİK 1: QR Scanner'ı rotadan açacağız, bu yüzden import'a gerek yok,
+// ama silmenize de gerek yok, zararı olmaz.
+// import 'qr_scanner_page.dart';
 import 'package:drone_control_v2/l10n/app_localizations.dart';
 
 class ProductCodePage extends StatefulWidget {
@@ -32,23 +36,23 @@ class _ProductCodePageState extends State<ProductCodePage> {
     super.dispose();
   }
 
+  // ---------- DEĞİŞİKLİK 1: _openQRScanner fonksiyonu güncellendi ----------
   Future<void> _openQRScanner() async {
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (context) => const QRScannerPage()),
-    );
+    // Artık QRScannerPage'i MaterialPageRoute ile değil, isimlendirilmiş rota ile açıyoruz.
+    final result = await Navigator.pushNamed<String>(context, '/qr_scanner');
+    
     if (result != null && result.isNotEmpty && mounted) {
       _controller.text = result;
     }
   }
 
+  // ---------- DEĞİŞİKLİK 2: _startTest fonksiyonu güncellendi ----------
   void _startTest() {
     if (!_isButtonEnabled) return;
-    Navigator.pushReplacementNamed(
-      context,
-      '/home',
-      arguments: _controller.text.trim(),
-    );
+
+    // Eskiden: Navigator.pushReplacementNamed(context, '/home', ...);
+    // YENİ HALİ: Sayfayı kapatıp, girilen kodu bir önceki sayfaya (HomePage'e) sonuç olarak gönderiyoruz.
+    Navigator.pop(context, _controller.text.trim());
   }
 
   @override
@@ -56,6 +60,8 @@ class _ProductCodePageState extends State<ProductCodePage> {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
+      // AppBar'a otomatik olarak bir geri butonu eklenmesi için bu değişikliği yapıyoruz.
+      // HomePage'den geldiğimiz için geri dönme seçeneği mantıklı.
       appBar: AppBar(
         title: Text(l10n.productCodePageTitle),
         backgroundColor: Theme.of(context).primaryColor,
@@ -127,6 +133,7 @@ class _ProductCodePageState extends State<ProductCodePage> {
                   foregroundColor:
                       _isButtonEnabled ? Colors.black : Colors.white54,
                 ),
+                // `onPressed` zaten doğru fonksiyonu çağırıyor, bu yüzden burada değişiklik yok.
                 onPressed: _isButtonEnabled ? _startTest : null,
               ),
             ],
