@@ -23,7 +23,7 @@ class DroneDashboardPage extends StatefulWidget {
 }
 
 class _DroneDashboardPageState extends State<DroneDashboardPage> {
-  // --- Değişkenleriniz ve State'iniz olduğu gibi kalıyor ---
+  // --- Orijinal Değişkenler ---
   DataType _selectedDataType = DataType.resultant;
   final Map<int, List<FlSpot>> _dataSpotsX = {
     for (var i = 0; i < 4; i++) i: [],
@@ -62,6 +62,9 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     for (var i = 0; i < 4; i++) i: [],
   };
 
+  // YENİ EKLENEN STATE: Drone görsel görünümünü kontrol etmek için.
+  bool _isDroneView = false;
+
   @override
   void initState() {
     super.initState();
@@ -77,10 +80,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     if (_isRecording && !_sessionSaveProcessStarted) {
       _sessionSaveProcessStarted = true;
       final contextForDialog = context;
-      // FrameCallback hatası için düzeltme
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        // Orijinal kodunuzda bu kontrol yoktu ama eklemek daha güvenli.
-        // İstemiyorsanız if (mounted) bloğunu kaldırabilirsiniz.
         if (mounted && contextForDialog.mounted) {
           _stopAndPromptSave(contextForDialog);
         }
@@ -91,8 +91,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     super.dispose();
   }
   
-  // --- Tüm fonksiyonlarınızın mantığı olduğu gibi kalıyor ---
-
   void _handleData(Map<String, dynamic> data) {
     if (!mounted) return;
     if (data.containsKey('empty') && data['empty'] == true) return;
@@ -124,7 +122,11 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     else
       newStatus = MotorStatus.normal;
     if (_motorStatus[transmitterIndex] != newStatus) {
-      _motorStatus[transmitterIndex] = newStatus;
+      // DEĞİŞTİRİLDİ: Drone görselinin anında güncellenmesi için setState eklendi.
+      // Bu değişiklik, yeni özelliğin doğru çalışması için gereklidir.
+      setState(() {
+        _motorStatus[transmitterIndex] = newStatus;
+      });
     }
   }
 
@@ -160,19 +162,15 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       _isRecording = true;
       _sessionSaveProcessStarted = false;
       for (var key in _recordedSpotsResultant.keys) {
-        // Orijinal kodunuzda 'recordedSpotsResultant' yazıyordu, '_recordedSpotsResultant' olmalı.
-        // Bu küçük hatayı düzeltiyorum.
         _recordedSpotsResultant[key]!.clear();
       }
     });
-    // FrameCallback hatası için düzeltme
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        // Sadece SnackBar içindeki Text yerelleştirildi.
         final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(l10n.dataRecordingStarted), // DEĞİŞTİ
+            content: Text(l10n.dataRecordingStarted),
             backgroundColor: Colors.blueAccent,
             duration: const Duration(seconds: 2),
           ),
@@ -191,7 +189,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       if (mounted) {
         ScaffoldMessenger.of(dialogContext).showSnackBar(
           const SnackBar(
-            // Bu metin .arb dosyasında yok, isterseniz ekleyebiliriz. Şimdilik orijinali gibi kalıyor.
             content: Text('Kayıt durduruldu. Kaydedilecek veri yok.'),
           ),
         );
@@ -199,21 +196,20 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       return;
     }
 
-    // Dialog içindeki metinler yerelleştirildi.
     final l10n = AppLocalizations.of(dialogContext)!;
     final bool? shouldSave = await showDialog<bool>(
       context: dialogContext,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text(l10n.saveSessionDialogTitle), // DEĞİŞTİ
-        content: Text(l10n.saveSessionDialogContent), // DEĞİŞTİ
+        title: Text(l10n.saveSessionDialogTitle),
+        content: Text(l10n.saveSessionDialogContent),
         actions: [
           TextButton(
-            child: Text(l10n.dontSaveButton), // DEĞİŞTİ
+            child: Text(l10n.dontSaveButton),
             onPressed: () => Navigator.of(context).pop(false),
           ),
           ElevatedButton(
-            child: Text(l10n.saveButton), // DEĞİŞTİ
+            child: Text(l10n.saveButton),
             onPressed: () => Navigator.of(context).pop(true),
           ),
         ],
@@ -224,13 +220,12 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(dialogContext).showSnackBar(
-            SnackBar(content: Text(l10n.sessionNotSaved))); // DEĞİŞTİ
+            SnackBar(content: Text(l10n.sessionNotSaved)));
       }
     }
   }
 
   Future<void> _saveSessionToFile(BuildContext scaffoldContext) async {
-    // SnackBar içindeki metinler yerelleştirildi.
     final l10n = AppLocalizations.of(scaffoldContext)!;
     try {
       final session = RecordedSession(
@@ -240,7 +235,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         v1Data: List.from(_recordedSpotsResultant[0]!),
         v2Data: List.from(_recordedSpotsResultant[1]!),
         v3Data: List.from(_recordedSpotsResultant[2]!),
-        // Orijinal kodunuzda 'recordedSpotsResultant' yazıyordu, '_recordedSpotsResultant' olmalı.
         v4Data: List.from(_recordedSpotsResultant[3]!),
       );
       final directory = await getApplicationDocumentsDirectory();
@@ -250,13 +244,13 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-          SnackBar(content: Text(l10n.sessionSavedSuccessfully(fileName))), // DEĞİŞTİ
+          SnackBar(content: Text(l10n.sessionSavedSuccessfully(fileName))),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-          SnackBar(content: Text(l10n.errorSavingSession(e.toString()))), // DEĞİŞTİ
+          SnackBar(content: Text(l10n.errorSavingSession(e.toString()))),
         );
       }
     }
@@ -281,12 +275,16 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     }
   }
 
-  // Bu fonksiyon artık l10n parametresi alıyor.
   String _getAppBarTitle(AppLocalizations l10n) {
+    // DEĞİŞTİRİLDİ: Başlık, drone görünümünde her zaman "Tüm Motorlar" olacak.
+    if (_isDroneView) {
+      return l10n.dashboardAppBarTitleAllMotors;
+    }
+    
     String baseTitle = (_selectedViewIndex < 4)
-        ? l10n.dashboardAppBarTitleMotor(_selectedViewIndex + 1) // DEĞİŞTİ
-        : l10n.dashboardAppBarTitleAllMotors; // DEĞİŞTİ
-    return _isFftView ? '$baseTitle ${l10n.dashboardAppBarTitleFFT}' : baseTitle; // DEĞİŞTİ
+        ? l10n.dashboardAppBarTitleMotor(_selectedViewIndex + 1)
+        : l10n.dashboardAppBarTitleAllMotors;
+    return _isFftView ? '$baseTitle ${l10n.dashboardAppBarTitleFFT}' : baseTitle;
   }
 
   void _handleViewSelection(int index) {
@@ -301,10 +299,10 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Sadece build metodunun başına l10n değişkeni eklendi.
     final l10n = AppLocalizations.of(context)!;
     bool isAllView = _selectedViewIndex == 4;
-    bool showSegmentedButton = !isAllView && !_isFftView;
+    // DEĞİŞTİRİLDİ: Segmented button artık drone görünümünde de gizlenecek.
+    bool showSegmentedButton = !isAllView && !_isFftView && !_isDroneView;
 
     return Scaffold(
       appBar: AppBar(
@@ -329,33 +327,47 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                   },
                 ),
               ),
-            Text(_getAppBarTitle(l10n)), // Text, l10n ile güncellendi.
+            Text(_getAppBarTitle(l10n)),
           ],
         ),
-        backgroundColor: Theme.of(context).primaryColor,
+         backgroundColor: Theme.of(context).primaryColor,
         actions: [
+          // DEĞİŞİKLİK BURADA: Drone/Grafik butonu artık FFT görünümü aktifken gizlenecek.
+          if (!_isFftView)
+            IconButton(
+              icon: Icon(_isDroneView ? Icons.show_chart_rounded : Icons.view_in_ar_outlined),
+              tooltip: _isDroneView ? "Grafik Görünümü" : "Drone Görünümü",
+              onPressed: () {
+                setState(() {
+                  _isDroneView = !_isDroneView;
+                  if (_isDroneView) {
+                    _isFftView = false;
+                    _handleViewSelection(4);
+                }
+              });
+            },
+          ),
           if (_isRecording)
             IconButton(
               icon: const Icon(
                 Icons.stop_circle_outlined,
                 color: Colors.redAccent,
               ),
-              tooltip: l10n.stopRecordingTooltip, // Tooltip yerelleştirildi.
+              tooltip: l10n.stopRecordingTooltip,
               onPressed: () {
                 if (!_sessionSaveProcessStarted) _stopAndPromptSave(context);
               },
             ),
-          if (!isAllView)
+          // DEĞİŞTİRİLDİ: FFT butonu, drone görünümündeyken de gizlenir.
+          if (!isAllView && !_isDroneView)
             IconButton(
               icon: Icon(_isFftView ? Icons.show_chart : Icons.ssid_chart),
-              // Tooltip yerelleştirildi.
               tooltip: _isFftView
                   ? l10n.showTimeGraphTooltip
                   : l10n.showFFTGraphTooltip,
               onPressed: () => setState(() => _isFftView = !_isFftView),
             ),
         ],
-        // bottom: ... kısmı orijinal yapı olduğu için değiştirilmedi.
         bottom: showSegmentedButton
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(56.0),
@@ -387,13 +399,128 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               )
             : null,
       ),
-      // body ve bottomNavigationBar, l10n parametresini alacak şekilde güncellendi.
-      body: _isFftView ? _buildFftGraph(l10n) : _buildGraph(l10n),
+      // DEĞİŞTİRİLDİ: Body artık 3 durumu kontrol ediyor: Drone, FFT veya normal grafik.
+      body: _isDroneView
+          ? _buildDroneVisual() // YENİ WIDGET
+          : (_isFftView ? _buildFftGraph(l10n) : _buildGraph(l10n)),
       bottomNavigationBar: _buildViewSelector(l10n),
     );
   }
+  
+  // YENİ EKLENDİ: Drone görselini oluşturan ana widget.
+  Widget _buildDroneVisual() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(32.0),
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Drone gövdesi (artı şekli)
+              Container(
+                width: 12,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade800,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              Container(
+                width: double.infinity,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade800,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
 
-  // Bu widget'ın yapısı değiştirilmedi.
+              // Motor göstergeleri (istediğiniz yerleşime göre)
+              Align(
+                alignment: Alignment.topCenter,
+                child: _buildDroneMotorIndicator(0, 'M1'), // M1 - Üst
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _buildDroneMotorIndicator(1, 'M2'), // M2 - Sağ
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: _buildDroneMotorIndicator(2, 'M3'), // M3 - Alt
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _buildDroneMotorIndicator(3, 'M4'), // M4 - Sol
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // YENİ EKLENDİ: Drone görseli üzerindeki tek bir motoru ve durumunu çizen yardımcı widget.
+  Widget _buildDroneMotorIndicator(int motorIndex, String label) {
+    final status = _motorStatus[motorIndex] ?? MotorStatus.inactive;
+    Color indicatorColor;
+    switch (status) {
+      case MotorStatus.normal:
+        indicatorColor = Colors.greenAccent;
+        break;
+      case MotorStatus.warning:
+        indicatorColor = Colors.yellowAccent;
+        break;
+      case MotorStatus.outOfBounds:
+        indicatorColor = Colors.redAccent;
+        break;
+      case MotorStatus.inactive:
+        indicatorColor = Colors.grey[600]!;
+        break;
+    }
+
+    // Tıklanıldığında o motorun grafiğine geçiş yap
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _isDroneView = false;
+          _handleViewSelection(motorIndex);
+        });
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: indicatorColor,
+              border: Border.all(color: Colors.white24, width: 2),
+              boxShadow: [
+                if (status != MotorStatus.inactive)
+                  BoxShadow(
+                    color: indicatorColor.withOpacity(0.6),
+                    blurRadius: 12.0,
+                    spreadRadius: 2.0,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSegmentedButton(DataType type, String label) {
     bool isSelected = _selectedDataType == type;
     return Expanded(
@@ -417,11 +544,10 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     );
   }
 
-  // Bu widget artık l10n parametresi alıyor.
   Widget _buildFftGraph(AppLocalizations l10n) {
     if (_selectedViewIndex >= 4)
       return Center(
-        child: Text(l10n.fftAnalysisNotAvailableForAll), // Text yerelleştirildi.
+        child: Text(l10n.fftAnalysisNotAvailableForAll),
       );
     final List<FlSpot> spots = _fftSpots[_selectedViewIndex] ?? [];
     double maxY = 0;
@@ -458,7 +584,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 reservedSize: 45,
                 getTitlesWidget: (v, m) => Text(v.toStringAsFixed(2)),
               ),
-              axisNameWidget: Text(l10n.fftAmplitude), // Text yerelleştirildi.
+              axisNameWidget: Text(l10n.fftAmplitude),
             ),
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
@@ -467,7 +593,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                 interval: 5,
                 getTitlesWidget: (v, m) => Text(v.toStringAsFixed(0)),
               ),
-              axisNameWidget: Text(l10n.fftFrequency), // Text yerelleştirildi.
+              axisNameWidget: Text(l10n.fftFrequency),
             ),
             topTitles: const AxisTitles(
               sideTitles: SideTitles(showTitles: false),
@@ -483,15 +609,17 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     );
   }
   
-  // Bu widget artık l10n parametresi alıyor.
   Widget _buildViewSelector(AppLocalizations l10n) {
-    final int buttonCount = _isFftView ? 4 : 5;
+    // DEĞİŞTİRİLDİ: "Tümü" butonu, drone görünümündeyken de görünür ve seçili kalır.
+    final int buttonCount = (_isFftView && !_isDroneView) ? 4 : 5;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
       color: Theme.of(context).primaryColor,
       child: Row(
         children: List.generate(buttonCount, (index) {
-          bool isSelected = _viewSelections[index];
+          // Drone görünümündeyken "Tümü" sekmesi seçili görünür.
+          bool isSelected = _isDroneView ? (index == 4) : _viewSelections[index];
+          
           if (index < 4) {
             final Color borderColor =
                 _settingsService.transmitterColors[index];
@@ -499,7 +627,11 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2.0),
                 child: OutlinedButton(
-                  onPressed: () => _handleViewSelection(index),
+                  onPressed: () {
+                    // Drone görünümünden çıkıp ilgili motoru seç
+                    if (_isDroneView) setState(() => _isDroneView = false);
+                    _handleViewSelection(index);
+                  },
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.zero,
                     backgroundColor: isSelected
@@ -523,7 +655,10 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2.0),
                 child: OutlinedButton(
-                  onPressed: () => _handleViewSelection(index),
+                  onPressed: () {
+                    if (_isDroneView) setState(() => _isDroneView = false);
+                    _handleViewSelection(index);
+                  },
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.zero,
                     backgroundColor: isSelected
@@ -540,7 +675,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12.0),
                     child: Text(
-                      l10n.allButton.toUpperCase(), // Text yerelleştirildi.
+                      l10n.allButton.toUpperCase(),
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: isSelected ? Colors.cyanAccent : Colors.white70,
@@ -556,7 +691,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     );
   }
 
-  // Bu widget'ın yapısı değiştirilmedi.
   Widget _buildMotorTab(String title, MotorStatus status) {
     Color indicatorColor;
     switch (status) {
@@ -573,10 +707,13 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
         indicatorColor = Colors.grey[600]!;
         break;
     }
-    final bool isCurrentlySelected =
-        _viewSelections.length > _selectedViewIndex &&
+    // DEĞİŞTİRİLDİ: Seçim mantığı _isDroneView'ı da dikkate alacak şekilde güncellendi.
+    final bool isCurrentlySelected = _isDroneView
+        ? false // Drone görünümünde tekli sekmeler seçili değildir
+        : (_viewSelections.length > _selectedViewIndex &&
             _viewSelections[_selectedViewIndex] &&
-            title == "M${_selectedViewIndex + 1}";
+            title == "M${_selectedViewIndex + 1}");
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
       child: Row(
@@ -602,7 +739,6 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
     );
   }
   
-  // Bu widget artık l10n parametresi alıyor.
   Widget _buildGraph(AppLocalizations l10n) {
     final double minX = max(0.0, _globalTime - _displaySeconds);
     final double maxX = max(_displaySeconds.toDouble(), _globalTime);
@@ -674,7 +810,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
-                  labelResolver: (line) => l10n.warningThresholdLabel, // DEĞİŞTİ
+                  labelResolver: (line) => l10n.warningThresholdLabel,
                 ),
               ),
               HorizontalLine(
@@ -691,7 +827,7 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
-                  labelResolver: (line) => l10n.errorThresholdLabel, // DEĞİŞTİ
+                  labelResolver: (line) => l10n.errorThresholdLabel,
                 ),
               ),
             ],
