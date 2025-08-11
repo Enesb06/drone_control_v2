@@ -401,125 +401,158 @@ class _DroneDashboardPageState extends State<DroneDashboardPage> {
       ),
       // DEĞİŞTİRİLDİ: Body artık 3 durumu kontrol ediyor: Drone, FFT veya normal grafik.
       body: _isDroneView
-          ? _buildDroneVisual() // YENİ WIDGET
+          ? _buildDroneVisualFinal() // YENİ WIDGET
           : (_isFftView ? _buildFftGraph(l10n) : _buildGraph(l10n)),
       bottomNavigationBar: _buildViewSelector(l10n),
     );
   }
   
   // YENİ EKLENDİ: Drone görselini oluşturan ana widget.
-  Widget _buildDroneVisual() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(32.0),
-        child: AspectRatio(
-          aspectRatio: 1,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Drone gövdesi (artı şekli)
-              Container(
-                width: 12,
-                height: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade800,
-                  borderRadius: BorderRadius.circular(6),
+Widget _buildDroneVisualFinal() {
+  return Center(
+    child: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Merkezi Gövde
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.grey.shade800,
+                gradient: RadialGradient(
+                  colors: [Colors.grey.shade700, Colors.grey.shade900],
                 ),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 10, spreadRadius: 2),
+                ],
               ),
-              Container(
-                width: double.infinity,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade800,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
+            ),
 
-              // Motor göstergeleri (istediğiniz yerleşime göre)
-              Align(
-                alignment: Alignment.topCenter,
-                child: _buildDroneMotorIndicator(0, 'M1'), // M1 - Üst
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: _buildDroneMotorIndicator(1, 'M2'), // M2 - Sağ
-              ),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: _buildDroneMotorIndicator(2, 'M3'), // M3 - Alt
-              ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _buildDroneMotorIndicator(3, 'M4'), // M4 - Sol
-              ),
+            // Motorlar ve Kollar
+            // Her bir motor ve kolu kendi hizalamasıyla yerleştiriyoruz.
+            _buildMotorAndArm(0, 'M1', Alignment.topCenter),
+            _buildMotorAndArm(1, 'M2', Alignment.centerRight),
+            _buildMotorAndArm(2, 'M3', Alignment.bottomCenter),
+            _buildMotorAndArm(3, 'M4', Alignment.centerLeft),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+// YENİ FİNAL VERSİYON: Tek bir motoru, kolunu ve etiketini simetrik olarak çizen yardımcı widget
+Widget _buildMotorAndArm(int motorIndex, String label, Alignment alignment) {
+  final status = _motorStatus[motorIndex] ?? MotorStatus.inactive;
+  final bool isVertical = alignment.y != 0;
+
+  // Motor durumuna göre renk belirleme
+  Color indicatorColor;
+  switch (status) {
+    case MotorStatus.normal:      indicatorColor = Colors.greenAccent; break;
+    case MotorStatus.warning:     indicatorColor = Colors.yellowAccent; break;
+    case MotorStatus.outOfBounds: indicatorColor = Colors.redAccent; break;
+    case MotorStatus.inactive:    indicatorColor = Colors.grey.shade700; break;
+  }
+
+  // Motor yuvası ve ışığı
+  final Widget motorPod = GestureDetector(
+    onTap: () {
+      setState(() {
+        _isDroneView = false;
+        _handleViewSelection(motorIndex);
+      });
+    },
+    child: Container(
+      width: 65,
+      height: 65,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF3A3A3A), // Koyu gri yuva rengi
+        border: Border.all(color: Colors.black.withOpacity(0.5), width: 2),
+      ),
+      child: Center(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          width: 55,
+          height: 55,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: indicatorColor,
+            boxShadow: [
+              if (status != MotorStatus.inactive)
+                BoxShadow(
+                  color: indicatorColor.withOpacity(0.6),
+                  blurRadius: 15.0,
+                  spreadRadius: 1.0,
+                ),
             ],
           ),
         ),
       ),
+    ),
+  );
+
+  // Motor kolu
+  final Widget arm = Container(
+    width: isVertical ? 14 : 45, // dikeyde dar, yatayda geniş
+    height: isVertical ? 45 : 14, // dikeyde uzun, yatayda dar
+    color: const Color(0xFF3A3A3A),
+  );
+  
+  // Etiket
+  final Widget motorLabel = Text(
+    label,
+    style: const TextStyle(
+      fontWeight: FontWeight.bold,
+      color: Colors.white70,
+      fontSize: 16,
+    ),
+  );
+
+  // Dikey (M1, M3) ve Yatay (M2, M4) yerleşimleri için farklı yapı
+  Widget assembly;
+  if (isVertical) {
+    // M1 (üst) ve M3 (alt) için Dikey Sütun
+    assembly = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: alignment.y < 0
+          ? [motorPod, arm]  // M1: Üstte motor, altta kol
+          : [arm, motorPod], // M3: Üstte kol, altta motor
+    );
+  } else {
+    // M2 (sağ) ve M4 (sol) için Yatay Satır
+    assembly = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: alignment.x < 0
+          ? [motorPod, arm]  // M4: Solda motor, sağda kol
+          : [arm, motorPod], // M2: Solda kol, sağda motor
     );
   }
 
-  // YENİ EKLENDİ: Drone görseli üzerindeki tek bir motoru ve durumunu çizen yardımcı widget.
-  Widget _buildDroneMotorIndicator(int motorIndex, String label) {
-    final status = _motorStatus[motorIndex] ?? MotorStatus.inactive;
-    Color indicatorColor;
-    switch (status) {
-      case MotorStatus.normal:
-        indicatorColor = Colors.greenAccent;
-        break;
-      case MotorStatus.warning:
-        indicatorColor = Colors.yellowAccent;
-        break;
-      case MotorStatus.outOfBounds:
-        indicatorColor = Colors.redAccent;
-        break;
-      case MotorStatus.inactive:
-        indicatorColor = Colors.grey[600]!;
-        break;
-    }
-
-    // Tıklanıldığında o motorun grafiğine geçiş yap
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _isDroneView = false;
-          _handleViewSelection(motorIndex);
-        });
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: indicatorColor,
-              border: Border.all(color: Colors.white24, width: 2),
-              boxShadow: [
-                if (status != MotorStatus.inactive)
-                  BoxShadow(
-                    color: indicatorColor.withOpacity(0.6),
-                    blurRadius: 12.0,
-                    spreadRadius: 2.0,
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              fontSize: 16,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Etiketi doğru konuma yerleştirmek için Stack kullanıyoruz
+  return Align(
+    alignment: alignment,
+    child: Stack(
+      alignment: alignment,
+      children: [
+        assembly,
+        // Etiketi motorun dışına itmek için Padding kullanıyoruz
+        Padding(
+          padding: isVertical
+            ? EdgeInsets.symmetric(vertical: 65.0 + 8.0)
+            : EdgeInsets.symmetric(horizontal: 65.0 + 8.0),
+          child: motorLabel,
+        )
+      ],
+    ),
+  );
+}
 
   Widget _buildSegmentedButton(DataType type, String label) {
     bool isSelected = _selectedDataType == type;
