@@ -1,4 +1,4 @@
-// lib/main.dart dosyasının TAM ve GÜNCEL HALİ
+// lib/main.dart dosyasının YENİ HALİ
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +7,7 @@ import 'package:drone_control_v2/screens/dashboard_page.dart';
 import 'package:drone_control_v2/screens/settings_page.dart';
 import 'package:drone_control_v2/services/settings_service.dart';
 import 'package:drone_control_v2/screens/saved_sessions_page.dart';
-import 'package:drone_control_v2/screens/product_code_page.dart'; 
+import 'package:drone_control_v2/screens/product_code_page.dart';
 import 'package:drone_control_v2/screens/wifi_selection_page.dart';
 import 'package:drone_control_v2/screens/qr_scanner_page.dart';
 import 'package:drone_control_v2/providers/locale_provider.dart';
@@ -53,23 +53,48 @@ class MyApp extends StatelessWidget {
       ),
       debugShowCheckedModeBanner: false,
 
-      // Uygulama bu rota ile başlar.
-      initialRoute: '/splash', 
-      routes: {
-        // Rotalar ve yönlendirdikleri sayfalar:
-        '/splash': (context) => const SplashScreen(), 
-        '/': (context) => const HomePage(),
-        '/product_code': (context) => const ProductCodePage(), 
-        '/qr_scanner': (context) => const QRScannerPage(),
-        '/wifi_selection': (context) => const WifiSelectionPage(),
-        '/dashboard': (context) {
-          final args =
-              ModalRoute.of(context)!.settings.arguments as DashboardArguments;
-          return DroneDashboardPage(args: args);
-        },
-        '/settings': (context) => const SettingsPage(),
-        '/saved_sessions': (context) => const SavedSessionsPage(),
+      initialRoute: '/splash',
+      
+      // ---------- DEĞİŞİKLİK BURADA BAŞLIYOR ----------
+      // ESKİ routes: { ... } HARİTASINI SİLİP, YERİNE onGenerateRoute EKLEYİN.
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case '/splash':
+            return MaterialPageRoute(builder: (_) => const SplashScreen());
+          case '/':
+            return MaterialPageRoute(builder: (_) => const HomePage());
+          
+          // DİKKAT: Bu rota bir String DÖNDÜRECEĞİ için tipini belirtiyoruz.
+          case '/product_code':
+            return MaterialPageRoute<String>(
+              builder: (_) => const ProductCodePage(),
+            );
+          
+          // DİKKAT: Bu rota da bir String DÖNDÜRECEĞİ için tipini belirtiyoruz.
+          case '/qr_scanner':
+            return MaterialPageRoute<String>(
+              builder: (_) => const QRScannerPage(),
+            );
+            
+          case '/wifi_selection':
+            return MaterialPageRoute(builder: (_) => const WifiSelectionPage());
+          case '/settings':
+            return MaterialPageRoute(builder: (_) => const SettingsPage());
+          case '/saved_sessions':
+            return MaterialPageRoute(builder: (_) => const SavedSessionsPage());
+            
+          case '/dashboard':
+            final args = settings.arguments as DashboardArguments;
+            return MaterialPageRoute(
+              builder: (_) => DroneDashboardPage(args: args),
+            );
+          
+          default:
+            // Tanımlanmayan bir rota için bir hata sayfası veya ana sayfa gösterilebilir.
+            return MaterialPageRoute(builder: (_) => const HomePage());
+        }
       },
+      // ---------- DEĞİŞİKLİK BURADA BİTİYOR ----------
     );
   }
 }
